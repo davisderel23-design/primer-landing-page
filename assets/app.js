@@ -5,6 +5,7 @@ const INDICADORES = [
   {
     id: "inflacion",
     titulo: "Inflación",
+    icono: "🛒",
     archivo: "data/inflacion.csv",
     fuente: "IPC, variación anual · BLS",
     unidad: "%",
@@ -14,6 +15,7 @@ const INDICADORES = [
   {
     id: "desempleo",
     titulo: "Desempleo",
+    icono: "💼",
     archivo: "data/desempleo.csv",
     fuente: "Tasa de desempleo · BLS",
     unidad: "%",
@@ -23,6 +25,7 @@ const INDICADORES = [
   {
     id: "fed",
     titulo: "Tasa de la Fed",
+    icono: "🏦",
     archivo: "data/fed.csv",
     fuente: "Rango objetivo de fondos federales · Reserva Federal",
     unidad: "%",
@@ -33,6 +36,7 @@ const INDICADORES = [
   {
     id: "dolar",
     titulo: "Dólar",
+    icono: "💱",
     archivo: "data/dolar.csv",
     fuente: "Índice amplio del dólar (ene 2006 = 100) · Reserva Federal",
     unidad: "",
@@ -109,8 +113,13 @@ function crearTarjeta(ind) {
   art.className = "tarjeta";
   art.id = `tarjeta-${ind.id}`;
   art.innerHTML = `
-    <h2>${ind.titulo}</h2>
-    <p class="fuente">${ind.fuente}</p>
+    <div class="cabeza">
+      <span class="icono" aria-hidden="true">${ind.icono || ""}</span>
+      <div>
+        <h2>${ind.titulo}</h2>
+        <p class="fuente">${ind.fuente}</p>
+      </div>
+    </div>
     <div class="cuerpo"><p class="error-tarjeta">Cargando…</p></div>`;
   return art;
 }
@@ -212,7 +221,10 @@ function dibujarGrafica(cont, puntos, ind) {
 
   // Línea y puntos
   const guia = el("line", { class: "guia-vertical", y1: m.arr, y2: m.arr + h, visibility: "hidden" }, svg);
-  el("path", { class: "linea", d: puntos.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.valor)}`).join("") }, svg);
+  const trazo = puntos.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.valor)}`).join("");
+  const piso = m.arr + h;
+  el("path", { class: "area", d: `${trazo}L${x(puntos.length - 1)},${piso}L${x(0)},${piso}Z` }, svg);
+  el("path", { class: "linea", d: trazo }, svg);
   // Con muchos meses, los puntos se ocultan y solo aparece el que tocas
   const radio = puntos.length > 24 ? 0 : 4;
   const circulos = puntos.map((p, i) => el("circle", { class: "punto", cx: x(i), cy: y(p.valor), r: radio }, svg));
@@ -281,6 +293,7 @@ document.addEventListener("pointerdown", (ev) => {
 const PODER = {
   id: "poder",
   titulo: "Poder de compra del dólar",
+  icono: "👛",
   archivo: "data/ipc_indice.csv",
   fuente: "Calculado con el IPC · BLS",
   prefijo: "$",
@@ -399,6 +412,8 @@ async function cargarEstado() {
   try {
     const estado = JSON.parse(await cargarTexto("data/estado.json"));
     nota.textContent = `Última actualización: ${fechaLarga(estado.actualizado)}.`;
+    const chip = document.getElementById("fecha-encabezado");
+    if (chip) chip.textContent = `Actualizado el ${fechaLarga(estado.actualizado)}`;
     if (estado.datos_de_ejemplo) {
       aviso("Datos de ejemplo: solo el último dato de cada tarjeta coincide con las cifras de referencia. El historial se reemplazará con cifras oficiales en cuanto se conecte la actualización automática.");
     }

@@ -4,13 +4,19 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Economía de EE. UU.</title>
-  <meta name="description" content="Panel sencillo con inflación, desempleo, tasa de la Fed y dólar de Estados Unidos.">
+  <meta name="description" content="Panel sencillo con inflación, desempleo, tasa de la Fed, dólar y poder de compra de Estados Unidos.">
+  <meta name="theme-color" content="#1f4fa3">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
   <link rel="stylesheet" href="assets/style.css">
 </head>
 <body>
   <header class="encabezado">
+    <p class="bandera" aria-hidden="true">🇺🇸</p>
     <h1>Economía de EE. UU.</h1>
-    <p class="subtitulo">Los cuatro datos clave, con fuentes oficiales.</p>
+    <p class="subtitulo">Los datos clave de la economía, con fuentes oficiales y al día.</p>
+    <p class="chip-fecha" id="fecha-encabezado">Cargando…</p>
   </header>
 
   <!-- Avisos: datos de ejemplo, fuentes que fallaron, errores de carga -->
@@ -21,17 +27,17 @@
   </main>
 
   <section class="guia" aria-labelledby="guia-titulo">
-    <h2 id="guia-titulo">Cómo leer estos datos</h2>
+    <h2 id="guia-titulo"><span aria-hidden="true">📖</span> Cómo leer estos datos</h2>
     <dl>
-      <dt>Inflación</dt>
+      <dt><span aria-hidden="true">🛒</span> Inflación</dt>
       <dd>Cuánto subieron los precios de lo que compra una familia típica comparado con el mismo mes del año anterior. Si dice 3&nbsp;%, lo que costaba 100 dólares hace un año hoy cuesta unos 103. Lo mide el BLS con el Índice de Precios al Consumidor (IPC).</dd>
-      <dt>Desempleo</dt>
+      <dt><span aria-hidden="true">💼</span> Desempleo</dt>
       <dd>De cada 100 personas que trabajan o buscan trabajo, cuántas no lo encuentran. Lo publica el BLS el primer viernes de cada mes.</dd>
-      <dt>Tasa de la Fed</dt>
+      <dt><span aria-hidden="true">🏦</span> Tasa de la Fed</dt>
       <dd>El rango de interés que la Reserva Federal fija para los préstamos entre bancos de un día para otro. Si sube, los créditos se encarecen y la economía tiende a enfriarse; si baja, ocurre lo contrario. La gráfica usa el límite superior del rango.</dd>
-      <dt>Dólar</dt>
+      <dt><span aria-hidden="true">💱</span> Dólar</dt>
       <dd>Un índice que compara el dólar con las monedas de otros países. Si sube, el dólar está más fuerte: las importaciones salen más baratas y las exportaciones más caras. No se lee en dólares, sino en puntos: 100 es el valor que tenía en enero de 2006. Usamos el índice amplio de la Reserva Federal (frente a unas 26 monedas); no es el «DXY» que citan algunas noticias, que mide solo 6 monedas y por eso da otro número (cerca de 100).</dd>
-      <dt>Poder de compra del dólar</dt>
+      <dt><span aria-hidden="true">👛</span> Poder de compra del dólar</dt>
       <dd>Cuánto valor pierde el dinero por la inflación. Si dice que lo que costaba 100 dólares hace 10 años hoy cuesta 135, quiere decir que con los mismos 100 dólares hoy compras menos cosas que antes. Se calcula con el IPC del BLS.</dd>
       <dd><strong>¿Cómo puede el dólar estar fuerte y a la vez perder valor?</strong> Son dos comparaciones distintas: el índice del dólar lo compara con <em>otras monedas</em> (por eso puede subir), mientras que el poder de compra lo compara con <em>los precios dentro de EE. UU.</em>, que casi siempre suben.</dd>
     </dl>
