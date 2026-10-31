@@ -34,7 +34,7 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parent.parent
 DATOS = RAIZ / "data"
 ESTADO = DATOS / "estado.json"
-DESDE = "2015-01-01"  # cuánto historial se pide a FRED
+DESDE = "2005-01-01"  # cuánto historial se pide a FRED (2006 es la base del índice del dólar)
 
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
 MESES_LARGOS = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio",
@@ -47,7 +47,17 @@ class FuenteFallo(Exception):
     pass
 
 
+_YA_DESCARGADO = {}  # para no pedir dos veces la misma serie en una corrida
+
+
 def descargar(serie, fuente_simulada=None, diaria=False):
+    clave_cache = (serie, diaria)
+    if clave_cache not in _YA_DESCARGADO:
+        _YA_DESCARGADO[clave_cache] = _descargar(serie, fuente_simulada, diaria)
+    return _YA_DESCARGADO[clave_cache]
+
+
+def _descargar(serie, fuente_simulada=None, diaria=False):
     """Devuelve {'AAAA-MM': valor} con los datos mensuales de una serie de FRED.
 
     diaria=True: se piden los datos día por día y se toma el último de cada mes.
@@ -108,6 +118,13 @@ def inflacion(sim):
     return filas
 
 
+def ipc_indice(sim):
+    # Nivel del IPC (no la variación): sirve para calcular el poder de compra del dólar
+    ipc = descargar("CPIAUCNS", sim)
+    revisar_rango("IPC", ipc.values(), 50, 2000)
+    return {p: {"valor": f"{v:.3f}"} for p, v in ipc.items()}
+
+
 def desempleo(sim):
     tasa = descargar("UNRATE", sim)
     revisar_rango("Desempleo", tasa.values(), 0, 30)
@@ -135,6 +152,7 @@ INDICADORES = [
     ("Desempleo", "desempleo.csv", ["valor"], desempleo),
     ("Tasa de la Fed", "fed.csv", ["inferior", "superior"], fed),
     ("Dólar", "dolar.csv", ["valor"], dolar),
+    ("Poder de compra", "ipc_indice.csv", ["valor"], ipc_indice),
 ]
 
 
