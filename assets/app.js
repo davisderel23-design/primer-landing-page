@@ -213,13 +213,15 @@ function dibujarGrafica(cont, puntos, ind) {
   // Línea y puntos
   const guia = el("line", { class: "guia-vertical", y1: m.arr, y2: m.arr + h, visibility: "hidden" }, svg);
   el("path", { class: "linea", d: puntos.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.valor)}`).join("") }, svg);
-  const circulos = puntos.map((p, i) => el("circle", { class: "punto", cx: x(i), cy: y(p.valor), r: 4 }, svg));
+  // Con muchos meses, los puntos se ocultan y solo aparece el que tocas
+  const radio = puntos.length > 24 ? 0 : 4;
+  const circulos = puntos.map((p, i) => el("circle", { class: "punto", cx: x(i), cy: y(p.valor), r: radio }, svg));
 
   // Interacción: tocar o pasar el dedo/ratón muestra el cuadro del punto más cercano
   let activo = -1;
   function mostrar(i) {
     if (i === activo) return;
-    if (activo >= 0) circulos[activo].classList.remove("activo"), circulos[activo].setAttribute("r", 4);
+    if (activo >= 0) circulos[activo].classList.remove("activo"), circulos[activo].setAttribute("r", radio);
     activo = i;
     if (i < 0) {
       cuadro.hidden = true;
@@ -232,8 +234,10 @@ function dibujarGrafica(cont, puntos, ind) {
     guia.setAttribute("x1", x(i));
     guia.setAttribute("x2", x(i));
     guia.setAttribute("visibility", "visible");
-    const extra = ind.esRango ? `<br>Rango: ${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)} %` : "";
-    cuadro.innerHTML = `${p.etiqueta}<strong>${fmt(p.valor, ind.decimales)}${ind.unidad ? " " + ind.unidad : ""}${ind.esRango ? " (límite superior)" : ""}</strong>${extra}`;
+    const extra = ind.esRango
+      ? `<span class="extra">Rango: ${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)} %</span>`
+      : ind.textoExtra ? `<span class="extra">${ind.textoExtra}</span>` : "";
+    cuadro.innerHTML = `${p.etiqueta}<strong>${ind.prefijo || ""}${fmt(p.valor, ind.decimales)}${ind.unidad ? " " + ind.unidad : ""}${ind.esRango ? " (límite superior)" : ""}</strong>${extra}`;
     cuadro.hidden = false;
     const mitad = cuadro.offsetWidth / 2;
     const cx = Math.max(mitad, Math.min(ancho - mitad, x(i)));
@@ -271,6 +275,109 @@ document.addEventListener("pointerdown", (ev) => {
   if (ev.target.closest(".grafica")) return;
   document.querySelectorAll(".grafica svg").forEach((s) => s.dispatchEvent(new Event("blur")));
 });
+
+// ---------- Poder de compra del dólar (calculado con el IPC) ----------
+
+const PODER = {
+  id: "poder",
+  titulo: "Poder de compra del dólar",
+  archivo: "data/ipc_indice.csv",
+  fuente: "Calculado con el IPC · BLS",
+  prefijo: "$",
+  unidad: "",
+  decimales: 2,
+};
+
+const PERIODOS = [
+  { id: "1", texto: "1 año", anos: 1 },
+  { id: "5", texto: "5 años", anos: 5 },
+  { id: "10", texto: "10 años", anos: 10 },
+  { id: "2006", texto: "Desde 2006", desde: "2006-01" },
+];
+
+// Busca el mes de comparación; si ese mes no tiene dato, usa el más cercano anterior
+function puntoBase(puntos, periodo) {
+  const ultimo = puntos[puntos.length - 1];
+  let objetivo = periodo.desde;
+  if (!objetivo) {
+    const [a, m] = ultimo.periodo.split("-");
+    objetivo = `${Number(a) - periodo.anos}-${m}`;
+  }
+  if (periodo.desde) {
+    const p = puntos.find((p) => p.periodo >= objetivo);
+    return p && p.periodo === objetivo ? p : null; // sin ese mes exacto, no se ofrece el botón
+  }
+  const anteriores = puntos.filter((p) => p.periodo <= objetivo);
+  return anteriores[anteriores.length - 1];
+}
+
+function calculoPoder(puntos, periodo) {
+  const ultimo = puntos[puntos.length - 1];
+  const base = puntoBase(puntos, periodo);
+  if (!base || base === ultimo) return null;
+  return {
+    base,
+    ultimo,
+    costoHoy: (100 * ultimo.valor) / base.valor, // lo que hoy cuesta lo que antes costaba $100
+    perdida: (1 - base.valor / ultimo.valor) * 100, // cuánto valor perdió cada dólar
+  };
+}
+
+function llenarPoder(art, puntos) {
+  const disponibles = PERIODOS.filter((p) => calculoPoder(puntos, p));
+  if (!disponibles.length) throw new Error("no hay suficiente historial del IPC");
+  let elegido = disponibles.find((p) => p.id === "10") || disponibles[disponibles.length - 1];
+
+  const filasTabla = disponibles
+    .map((p) => {
+      const c = calculoPoder(puntos, p);
+      return `<tr><td>${c.base.etiqueta}</td><td>$${fmt(c.costoHoy, 2)}</td><td>${fmt(c.perdida, 1)} %</td></tr>`;
+    })
+    .join("");
+
+  art.querySelector(".cuerpo").innerHTML = `
+    <div class="chips" role="group" aria-label="Comparar con">
+      ${disponibles.map((p) => `<button type="button" data-periodo="${p.id}">${p.texto}</button>`).join("")}
+    </div>
+    <p class="frase" data-frase></p>
+    <p class="valor" data-valor></p>
+    <p class="cambio" data-cambio></p>
+    <p class="periodo" data-periodo-txt></p>
+    <div class="grafica">
+      <div class="cuadro" hidden></div>
+    </div>
+    <details class="tabla">
+      <summary>Ver los números</summary>
+      <table><thead><tr><th>Desde</th><th>Lo que costaba $100, hoy</th><th>Pérdida</th></tr></thead><tbody>${filasTabla}</tbody></table>
+    </details>`;
+
+  const cont = art.querySelector(".grafica");
+  function mostrarPeriodo() {
+    const c = calculoPoder(puntos, elegido);
+    art.querySelectorAll(".chips button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.periodo === elegido.id)));
+    art.querySelector("[data-frase]").innerHTML = `Lo que costaba <strong>$100</strong> en ${c.base.etiqueta}, hoy cuesta:`;
+    art.querySelector("[data-valor]").textContent = `$${fmt(c.costoHoy, 2)}`;
+    art.querySelector("[data-cambio]").innerHTML =
+      `<span class="flecha" aria-label="baja">▼</span> Cada dólar perdió ${fmt(c.perdida, 1)} % de su poder de compra`;
+    art.querySelector("[data-periodo-txt]").textContent = `Último dato del IPC: ${c.ultimo.etiqueta}`;
+    // Gráfica: cuánto costaba, mes a mes, lo que al inicio costaba $100
+    const serie = puntos
+      .filter((p) => p.periodo >= c.base.periodo)
+      .map((p) => ({ ...p, valor: (100 * p.valor) / c.base.valor }));
+    const ind = { ...PODER, textoExtra: `por lo que en ${c.base.etiqueta} costaba $100` };
+    const dibujar = () => dibujarGrafica(cont, serie, ind);
+    dibujar();
+    cont._dibujar = dibujar;
+  }
+  art.querySelectorAll(".chips button").forEach((b) =>
+    b.addEventListener("click", () => {
+      elegido = PERIODOS.find((p) => p.id === b.dataset.periodo);
+      mostrarPeriodo();
+    })
+  );
+  mostrarPeriodo();
+  new ResizeObserver(() => cont._dibujar && cont._dibujar()).observe(cont);
+}
 
 // ---------- Avisos y fecha ----------
 
@@ -321,6 +428,16 @@ async function iniciar() {
       }
     })
   );
+
+  const art = crearTarjeta(PODER);
+  zona.appendChild(art);
+  try {
+    const puntos = aPuntos(leerCSV(await cargarTexto(PODER.archivo)), PODER);
+    llenarPoder(art, puntos);
+  } catch (e) {
+    art.querySelector(".cuerpo").innerHTML = `<p class="error-tarjeta">No se pudieron cargar los datos de «${PODER.titulo}» en este momento. Intenta de nuevo más tarde.</p>`;
+    console.error(e);
+  }
 }
 
 iniciar();

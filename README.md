@@ -1,7 +1,7 @@
 # Economía de EE. UU. — panel de datos
 
-Panel web sencillo (en español, pensado para el teléfono) con cuatro indicadores:
-inflación, desempleo, tasa de la Fed y dólar.
+Panel web sencillo (en español, pensado para el teléfono) con inflación, desempleo,
+tasa de la Fed, dólar y poder de compra del dólar.
 
 ## Cómo está organizado
 
@@ -20,8 +20,9 @@ inflación, desempleo, tasa de la Fed y dólar.
 |---|---|---|
 | Inflación | `CPIAUCNS` | Variación % frente al mismo mes del año anterior |
 | Desempleo | `UNRATE` | Tal cual |
-| Tasa de la Fed | `DFEDTARL`, `DFEDTARU` | Valor vigente al cierre de cada mes |
-| Dólar | `DTWEXBGS` (índice amplio, ene 2006 = 100) | Valor al cierre de cada mes |
+| Tasa de la Fed | `DFEDTARL`, `DFEDTARU` | Último dato diario de cada mes |
+| Dólar | `DTWEXBGS` (índice amplio, ene 2006 = 100) | Último dato diario de cada mes |
+| Poder de compra | `CPIAUCNS` (nivel del IPC, en `ipc_indice.csv`) | Lo que hoy cuesta lo que antes costaba $100 = 100 × IPC hoy ÷ IPC entonces |
 
 El DXY de ICE no está disponible gratis en FRED; por eso se usa el índice amplio de la Fed.
 
