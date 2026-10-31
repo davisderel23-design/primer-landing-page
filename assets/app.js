@@ -195,7 +195,9 @@ function dibujarGrafica(cont, puntos, ind) {
   cont.insertBefore(svg, cuadro);
 
   // Rejilla y eje Y
-  const dec = marcas.some((v) => !Number.isInteger(v * 10)) ? 2 : marcas.some((v) => !Number.isInteger(v)) ? 1 : 0;
+  // Cuántos decimales necesita el eje (con tolerancia para errores mínimos de la computadora)
+  const decimalesDe = (v) => [0, 1, 2, 3].find((d) => Math.abs(Math.round(v * 10 ** d) - v * 10 ** d) < 1e-6) ?? 3;
+  const dec = Math.max(...marcas.map(decimalesDe));
   for (const v of marcas) {
     el("line", { class: "rejilla", x1: m.izq, x2: ancho - m.der, y1: y(v), y2: y(v) }, svg);
     const t = el("text", { x: m.izq - 6, y: y(v) + 4, "text-anchor": "end" }, svg);
