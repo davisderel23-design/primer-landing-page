@@ -47,8 +47,12 @@ class FuenteFallo(Exception):
     pass
 
 
-def descargar(serie, fuente_simulada=None, **extra):
-    """Devuelve {'AAAA-MM': valor} con los datos mensuales de una serie de FRED."""
+def descargar(serie, fuente_simulada=None, diaria=False):
+    """Devuelve {'AAAA-MM': valor} con los datos mensuales de una serie de FRED.
+
+    diaria=True: se piden los datos día por día y se toma el último de cada mes.
+    Así el mes en curso muestra el dato más reciente (FRED, al resumir por mes,
+    no entrega el mes hasta que termina)."""
     if fuente_simulada:
         ruta = Path(fuente_simulada) / f"{serie}.json"
         if not ruta.exists():
@@ -59,7 +63,9 @@ def descargar(serie, fuente_simulada=None, **extra):
         if not clave:
             raise FuenteFallo("falta la clave FRED_API_KEY")
         params = {"series_id": serie, "api_key": clave, "file_type": "json",
-                  "observation_start": DESDE, "frequency": "m", **extra}
+                  "observation_start": DESDE}
+        if not diaria:
+            params["frequency"] = "m"
         url = "https://api.stlouisfed.org/fred/series/observations?" + urllib.parse.urlencode(params)
         try:
             with urllib.request.urlopen(url, timeout=30) as r:
@@ -69,7 +75,8 @@ def descargar(serie, fuente_simulada=None, **extra):
             raise FuenteFallo(f"{serie}: {type(e).__name__} {getattr(e, 'code', '')}".strip())
 
     resultado = {}
-    for obs in datos.get("observations", []):
+    # Ordenadas por fecha: si hay varios datos en un mes, queda el último
+    for obs in sorted(datos.get("observations", []), key=lambda o: o.get("date", "")):
         valor = obs.get("value", ".")
         if valor in (".", ""):  # FRED usa "." cuando no hay dato (p. ej. un mes no publicado)
             continue
@@ -108,17 +115,17 @@ def desempleo(sim):
 
 
 def fed(sim):
-    # Series diarias: se toma el valor vigente al cierre de cada mes ("eop").
+    # Series diarias: se toma el último valor de cada mes.
     # Para el mes en curso es el valor más reciente.
-    inf = descargar("DFEDTARL", sim, aggregation_method="eop")
-    sup = descargar("DFEDTARU", sim, aggregation_method="eop")
+    inf = descargar("DFEDTARL", sim, diaria=True)
+    sup = descargar("DFEDTARU", sim, diaria=True)
     comunes = sorted(set(inf) & set(sup))
     revisar_rango("Tasa de la Fed", [inf[p] for p in comunes] + [sup[p] for p in comunes], 0, 25)
     return {p: {"inferior": f"{inf[p]:.2f}", "superior": f"{sup[p]:.2f}"} for p in comunes}
 
 
 def dolar(sim):
-    indice = descargar("DTWEXBGS", sim, aggregation_method="eop")
+    indice = descargar("DTWEXBGS", sim, diaria=True)
     revisar_rango("Dólar", indice.values(), 50, 250)
     return {p: {"valor": f"{v:.2f}"} for p, v in indice.items()}
 
