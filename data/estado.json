@@ -1,32 +1,6 @@
 {
   "actualizado": "2026-10-31",
-  "datos_de_ejemplo": true,
-  "avisos": [
-    "No se pudo actualizar «Desempleo» desde el 31 de octubre de 2026. Se muestra el último dato disponible.",
-    "No se pudo actualizar «Dólar» desde el 31 de octubre de 2026. Se muestra el último dato disponible.",
-    "No se pudo actualizar «Inflación» desde el 31 de octubre de 2026. Se muestra el último dato disponible.",
-    "No se pudo actualizar «Tasa de la Fed» desde el 31 de octubre de 2026. Se muestra el último dato disponible."
-  ],
-  "avisos_detalle": [
-    {
-      "indicador": "Desempleo",
-      "desde": "2026-10-31",
-      "detalle": "falta la clave FRED_API_KEY"
-    },
-    {
-      "indicador": "Dólar",
-      "desde": "2026-10-31",
-      "detalle": "falta la clave FRED_API_KEY"
-    },
-    {
-      "indicador": "Inflación",
-      "desde": "2026-10-31",
-      "detalle": "falta la clave FRED_API_KEY"
-    },
-    {
-      "indicador": "Tasa de la Fed",
-      "desde": "2026-10-31",
-      "detalle": "falta la clave FRED_API_KEY"
-    }
-  ]
+  "datos_de_ejemplo": false,
+  "avisos": [],
+  "avisos_detalle": []
 }
