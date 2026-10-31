@@ -1,0 +1,136 @@
+/* Colores en un solo lugar: claro y oscuro */
+:root {
+  color-scheme: light;
+  --fondo: #f4f4f2;
+  --superficie: #fcfcfb;
+  --texto: #0b0b0b;
+  --texto-2: #52514e;
+  --texto-3: #6f6e69;
+  --borde: #e2e1dc;
+  --rejilla: #ecebe6;
+  --serie: #2a78d6;
+  --aviso-fondo: #fff4d6;
+  --aviso-borde: #eda100;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --fondo: #111110;
+    --superficie: #1a1a19;
+    --texto: #f0efec;
+    --texto-2: #c3c2b7;
+    --texto-3: #9d9c93;
+    --borde: #2e2e2b;
+    --rejilla: #262624;
+    --serie: #3987e5;
+    --aviso-fondo: #3a2e0c;
+    --aviso-borde: #c98500;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --fondo: #111110;
+  --superficie: #1a1a19;
+  --texto: #f0efec;
+  --texto-2: #c3c2b7;
+  --texto-3: #9d9c93;
+  --borde: #2e2e2b;
+  --rejilla: #262624;
+  --serie: #3987e5;
+  --aviso-fondo: #3a2e0c;
+  --aviso-borde: #c98500;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.45;
+  padding: 16px;
+  max-width: 960px;
+  margin-inline: auto;
+}
+h1 { font-size: 1.5rem; margin: 8px 0 2px; }
+h2 { font-size: 1.15rem; margin: 0 0 12px; }
+.subtitulo { margin: 0 0 16px; color: var(--texto-2); }
+
+.avisos:empty { display: none; }
+.aviso {
+  background: var(--aviso-fondo);
+  border-left: 4px solid var(--aviso-borde);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  font-size: .95rem;
+}
+
+.tarjetas {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: 1fr;
+}
+@media (min-width: 700px) {
+  .tarjetas { grid-template-columns: 1fr 1fr; }
+}
+
+.tarjeta {
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  padding: 16px;
+  min-width: 0;
+}
+.tarjeta h2 { font-size: 1rem; margin: 0; }
+.tarjeta .fuente { font-size: .8rem; color: var(--texto-3); margin: 0 0 8px; }
+.valor { font-size: 2.6rem; font-weight: 650; line-height: 1.1; margin: 4px 0 2px; }
+.valor .unidad { font-size: 1.3rem; font-weight: 500; color: var(--texto-2); margin-left: 2px; }
+.cambio { font-size: .95rem; color: var(--texto-2); margin: 0 0 8px; }
+.cambio .flecha { font-weight: 700; color: var(--texto); }
+.periodo { font-size: .85rem; color: var(--texto-3); margin: 0; }
+
+.grafica { position: relative; margin-top: 10px; touch-action: pan-y; }
+.grafica svg:focus { outline: none; }
+.grafica svg:focus-visible { outline: 2px solid var(--serie); outline-offset: 2px; border-radius: 4px; }
+.grafica svg { display: block; width: 100%; height: 170px; overflow: visible; }
+.grafica .linea { fill: none; stroke: var(--serie); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.grafica .punto { fill: var(--superficie); stroke: var(--serie); stroke-width: 2; }
+.grafica .punto.activo { fill: var(--serie); }
+.grafica .rejilla { stroke: var(--rejilla); stroke-width: 1; }
+.grafica .guia-vertical { stroke: var(--texto-3); stroke-width: 1; stroke-dasharray: 3 3; }
+.grafica text { fill: var(--texto-3); font-size: 11px; font-variant-numeric: tabular-nums; }
+.cuadro {
+  position: absolute;
+  top: 0;
+  pointer-events: none;
+  background: var(--texto);
+  color: var(--superficie);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: .85rem;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+}
+.cuadro[hidden] { display: none; }
+.cuadro strong { display: block; font-size: 1rem; }
+
+details.tabla { margin-top: 8px; font-size: .85rem; color: var(--texto-2); }
+details.tabla summary { cursor: pointer; padding: 4px 0; }
+details.tabla table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+details.tabla td, details.tabla th { text-align: left; padding: 3px 4px; border-bottom: 1px solid var(--rejilla); }
+details.tabla td:last-child, details.tabla th:last-child { text-align: right; }
+
+.error-tarjeta { color: var(--texto-2); font-size: .95rem; }
+
+.guia {
+  margin-top: 24px;
+  background: var(--superficie);
+  border: 1px solid var(--borde);
+  border-radius: 14px;
+  padding: 16px;
+}
+.guia dt { font-weight: 650; margin-top: 10px; }
+.guia dd { margin: 2px 0 0; color: var(--texto-2); }
+.nota { font-size: .85rem; color: var(--texto-3); margin: 14px 0 0; }

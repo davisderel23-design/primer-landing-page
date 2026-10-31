@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Economía de EE. UU.</title>
+  <meta name="description" content="Panel sencillo con inflación, desempleo, tasa de la Fed y dólar de Estados Unidos.">
+  <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+  <header class="encabezado">
+    <h1>Economía de EE. UU.</h1>
+    <p class="subtitulo">Los cuatro datos clave, con fuentes oficiales.</p>
+  </header>
+
+  <!-- Avisos: datos de ejemplo, fuentes que fallaron, errores de carga -->
+  <div id="avisos" class="avisos" aria-live="polite"></div>
+
+  <main id="tarjetas" class="tarjetas">
+    <!-- Las tarjetas se crean desde assets/app.js leyendo los CSV de /data -->
+  </main>
+
+  <section class="guia" aria-labelledby="guia-titulo">
+    <h2 id="guia-titulo">Cómo leer estos datos</h2>
+    <dl>
+      <dt>Inflación</dt>
+      <dd>Cuánto subieron los precios de lo que compra una familia típica comparado con el mismo mes del año anterior. Si dice 3&nbsp;%, lo que costaba 100 dólares hace un año hoy cuesta unos 103. Lo mide el BLS con el Índice de Precios al Consumidor (IPC).</dd>
+      <dt>Desempleo</dt>
+      <dd>De cada 100 personas que trabajan o buscan trabajo, cuántas no lo encuentran. Lo publica el BLS el primer viernes de cada mes.</dd>
+      <dt>Tasa de la Fed</dt>
+      <dd>El rango de interés que la Reserva Federal fija para los préstamos entre bancos de un día para otro. Si sube, los créditos se encarecen y la economía tiende a enfriarse; si baja, ocurre lo contrario. La gráfica usa el límite superior del rango.</dd>
+      <dt>Dólar</dt>
+      <dd>Un índice que compara el dólar con las monedas de otros países. Si sube, el dólar está más fuerte: las importaciones salen más baratas y las exportaciones más caras. No se lee en dólares, sino en puntos frente a un año base.</dd>
+    </dl>
+    <p class="nota" id="nota-actualizacion">Cargando fecha de actualización…</p>
+    <p class="nota">Fuentes: Oficina de Estadísticas Laborales (BLS) y Reserva Federal, vía FRED (Banco de la Reserva Federal de St. Louis).</p>
+  </section>
+
+  <script src="assets/app.js"></script>
+</body>
+</html>
