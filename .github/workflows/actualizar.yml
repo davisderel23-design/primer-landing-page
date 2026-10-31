@@ -1,0 +1,89 @@
+# Tarea automática: actualiza los datos y publica la página en GitHub Pages.
+#
+# Cuándo corre:
+#   - Todos los días a las 15:17 UTC (11:17 a. m. hora del Este en verano, 10:17 en invierno),
+#     después de que el BLS publica (8:30 a. m. hora del Este). Las decisiones de la Fed
+#     (2:00 p. m.) se recogen al día siguiente.
+#   - Cada vez que se sube un cambio a la rama main (para publicar mejoras de la página).
+#   - A mano, con el botón "Run workflow" en la pestaña Actions.
+
+name: Actualizar datos y publicar
+
+on:
+  schedule:
+    - cron: "17 15 * * *"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Evita que dos ejecuciones se pisen
+concurrency:
+  group: actualizar-y-publicar
+  cancel-in-progress: false
+
+jobs:
+  actualizar:
+    name: Descargar datos de FRED
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # para guardar los CSV actualizados
+    outputs:
+      avisos: ${{ steps.datos.outputs.avisos }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ejecutar el script
+        id: datos
+        env:
+          FRED_API_KEY: ${{ secrets.FRED_API_KEY }} # viene del secreto; nunca se muestra
+        run: python3 scripts/actualizar_datos.py
+
+      - name: Guardar cambios (solo si hay datos nuevos)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add data
+          if git diff --cached --quiet; then
+            echo "No hay datos nuevos; no se guarda nada."
+          else
+            git commit -m "Datos actualizados $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+  publicar:
+    name: Publicar en GitHub Pages
+    needs: actualizar
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.despliegue.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }} # la versión más reciente, con los datos recién guardados
+
+      - name: Preparar solo los archivos de la página
+        run: |
+          mkdir _site
+          cp -r index.html assets data _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: despliegue
+        uses: actions/deploy-pages@v4
+
+  avisar:
+    name: Avisar si alguna fuente falló
+    needs: [actualizar, publicar]
+    if: needs.actualizar.outputs.avisos != '0'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fuente con problemas
+        run: |
+          echo "::error::${{ needs.actualizar.outputs.avisos }} fuente(s) no se pudieron actualizar. La página sigue funcionando con el dato anterior. Revisa los detalles en el paso 'Ejecutar el script'."
+          exit 1 # marca la ejecución en rojo para que GitHub te mande un correo
