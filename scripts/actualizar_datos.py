@@ -197,6 +197,9 @@ def main():
             desde = avisos_previos.get(nombre, {}).get("desde", hoy.isoformat())
             avisos[nombre] = {"indicador": nombre, "desde": desde, "detalle": str(e)}
             print(f"AVISO  {nombre}: no se pudo actualizar ({e}). Se conserva el dato anterior.")
+            if os.environ.get("GITHUB_ACTIONS"):
+                # Aparece como advertencia amarilla en la pantalla de GitHub Actions
+                print(f"::warning title=Falló {nombre}::{e}. Se conserva el dato anterior.")
             continue
 
         algun_exito = True
@@ -231,6 +234,10 @@ def main():
         ESTADO.write_text(json.dumps(estado, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 
     print("Hubo cambios en los datos." if hubo_cambios else "Sin datos nuevos.")
+    salida_gh = os.environ.get("GITHUB_OUTPUT")
+    if salida_gh:  # para que los pasos siguientes de GitHub Actions sepan qué pasó
+        with open(salida_gh, "a", encoding="utf-8") as f:
+            f.write(f"avisos={len(avisos)}\n")
     if avisos and not algun_exito:
         print("Todas las fuentes fallaron.")
     return 0  # nunca rompe la tarea: los fallos quedan como avisos

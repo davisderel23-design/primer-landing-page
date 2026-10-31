@@ -39,6 +39,14 @@ python3 -m http.server 8000
 ```
 y abre http://localhost:8000
 
-> Estado actual: **parte 2 lista (script)**; los CSV aún tienen datos de ejemplo. Solo el último dato de cada
+## Automatización
+
+`.github/workflows/actualizar.yml` corre cada día a las 15:17 UTC (y con cada cambio en `main`):
+descarga los datos, guarda los CSV si hay algo nuevo y publica la página en GitHub Pages.
+Si una fuente falla, la página sigue con el dato anterior, muestra un aviso y la ejecución
+queda en rojo para que GitHub mande un correo.
+
+Requisitos (una sola vez): secreto `FRED_API_KEY` en Settings → Secrets and variables → Actions,
+y Settings → Pages → Source: **GitHub Actions**. Solo el último dato de cada
 > tarjeta coincide con las cifras de referencia; el historial se reemplazará
 > con datos oficiales de FRED en la parte 2.
