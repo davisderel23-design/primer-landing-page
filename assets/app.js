@@ -34,7 +34,7 @@ const INDICADORES = [
     id: "dolar",
     titulo: "Dólar",
     archivo: "data/dolar.csv",
-    fuente: "Índice del dólar frente a otras monedas · Reserva Federal",
+    fuente: "Índice amplio del dólar (ene 2006 = 100) · Reserva Federal",
     unidad: "",
     decimales: 1,
     unidadCambio: "puntos",
@@ -82,7 +82,9 @@ function aPuntos(filas, ind) {
 // ---------- Formato ----------
 
 function fmt(n, dec) {
-  return n.toFixed(dec);
+  // Redondeo "normal" (120.35 → 120.4); toFixed solo a veces falla por cómo guarda decimales la computadora
+  const f = Math.pow(10, dec);
+  return (Math.round(n * f + 1e-9 * Math.sign(n)) / f).toFixed(dec);
 }
 
 function textoValor(p, ind) {

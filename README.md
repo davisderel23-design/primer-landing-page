@@ -12,6 +12,25 @@ inflación, desempleo, tasa de la Fed y dólar.
 | `assets/style.css` | Colores y diseño (modo claro y oscuro). |
 | `data/*.csv` | Un archivo por indicador: `periodo,etiqueta,valor` (la Fed: `periodo,etiqueta,inferior,superior`). |
 | `data/estado.json` | Fecha de la última actualización y avisos. |
+| `scripts/actualizar_datos.py` | Descarga los datos de FRED y actualiza los CSV sin borrar historial. |
+
+## Series de FRED
+
+| Indicador | Serie | Cálculo |
+|---|---|---|
+| Inflación | `CPIAUCNS` | Variación % frente al mismo mes del año anterior |
+| Desempleo | `UNRATE` | Tal cual |
+| Tasa de la Fed | `DFEDTARL`, `DFEDTARU` | Valor vigente al cierre de cada mes |
+| Dólar | `DTWEXBGS` (índice amplio, ene 2006 = 100) | Valor al cierre de cada mes |
+
+El DXY de ICE no está disponible gratis en FRED; por eso se usa el índice amplio de la Fed.
+
+## Actualizar los datos a mano
+
+```
+FRED_API_KEY=tu_clave python3 scripts/actualizar_datos.py
+```
+Si una serie falla, su CSV no se toca y queda un aviso en `data/estado.json`.
 
 ## Verla en tu computadora
 
@@ -20,6 +39,6 @@ python3 -m http.server 8000
 ```
 y abre http://localhost:8000
 
-> Estado actual: **parte 1 (datos de ejemplo)**. Solo el último dato de cada
+> Estado actual: **parte 2 lista (script)**; los CSV aún tienen datos de ejemplo. Solo el último dato de cada
 > tarjeta coincide con las cifras de referencia; el historial se reemplazará
 > con datos oficiales de FRED en la parte 2.
