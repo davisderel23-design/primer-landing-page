@@ -116,25 +116,51 @@ def variacion_anual(indice):
     return resultado
 
 
-def general_y_subyacente(nombre, serie_general, serie_subyacente, sim):
-    general = variacion_anual(descargar(serie_general, sim))
-    subyacente = variacion_anual(descargar(serie_subyacente, sim))
+def variacion_mensual(indice):
+    """{periodo: nivel} → {periodo: % frente al mes anterior}."""
+    resultado = {}
+    for periodo, v in indice.items():
+        a, m = map(int, periodo.split("-"))
+        anterior = f"{a - 1}-12" if m == 1 else f"{a}-{m - 1:02d}"
+        if anterior in indice:
+            resultado[periodo] = (v / indice[anterior] - 1) * 100
+    return resultado
+
+
+def general_y_subyacente(nombre, anual_general, anual_sub, mensual_general, mensual_sub, sim):
+    """Variación anual (y/y) y mensual (m/m) de la inflación general y subyacente.
+
+    La anual y la mensual pueden venir de series distintas: el BLS calcula la
+    anual del CPI sin ajuste estacional y la mensual con ajuste estacional."""
+    general = variacion_anual(descargar(anual_general, sim))
+    subyacente = variacion_anual(descargar(anual_sub, sim))
+    m_general = variacion_mensual(descargar(mensual_general, sim))
+    m_sub = variacion_mensual(descargar(mensual_sub, sim))
     revisar_rango(nombre, list(general.values()) + list(subyacente.values()), -5, 25)
+    revisar_rango(nombre + " mensual", list(m_general.values()) + list(m_sub.values()), -5, 5)
+    texto = lambda d, p: f"{d[p]:.1f}" if p in d else ""
     return {
-        p: {"valor": f"{v:.1f}", "subyacente": f"{subyacente[p]:.1f}" if p in subyacente else ""}
+        p: {
+            "valor": f"{v:.1f}",
+            "subyacente": texto(subyacente, p),
+            "mensual": texto(m_general, p),
+            "mensual_sub": texto(m_sub, p),
+        }
         for p, v in general.items()
     }
 
 
 def inflacion(sim):
-    # IPC (CPI) general y subyacente (sin alimentos ni energía), sin ajuste estacional,
-    # como la cifra anual que publica el BLS
-    return general_y_subyacente("Inflación (IPC)", "CPIAUCNS", "CPILFENS", sim)
+    # CPI general y subyacente (sin alimentos ni energía).
+    # Anual (y/y): series sin ajuste estacional, como la cifra anual que publica el BLS.
+    # Mensual (m/m): series con ajuste estacional, como la cifra mensual del BLS.
+    return general_y_subyacente("Inflación (IPC)", "CPIAUCNS", "CPILFENS", "CPIAUCSL", "CPILFESL", sim)
 
 
 def pce(sim):
-    # Índice de precios PCE general y subyacente (BEA); es la medida que vigila la Fed (meta: 2 %)
-    return general_y_subyacente("Inflación PCE", "PCEPI", "PCEPILFE", sim)
+    # Índice de precios PCE general y subyacente (BEA); es la medida que vigila la Fed (meta: 2 %).
+    # La BEA solo publica estas series con ajuste estacional: se usan para y/y y m/m.
+    return general_y_subyacente("Inflación PCE", "PCEPI", "PCEPILFE", "PCEPI", "PCEPILFE", sim)
 
 
 def empleo(sim):
@@ -180,8 +206,8 @@ def dolar(sim):
 
 
 INDICADORES = [
-    ("Inflación", "inflacion.csv", ["valor", "subyacente"], inflacion),
-    ("Inflación PCE", "pce.csv", ["valor", "subyacente"], pce),
+    ("Inflación", "inflacion.csv", ["valor", "subyacente", "mensual", "mensual_sub"], inflacion),
+    ("Inflación PCE", "pce.csv", ["valor", "subyacente", "mensual", "mensual_sub"], pce),
     ("Empleo (NFP)", "empleo.csv", ["valor"], empleo),
     ("Desempleo", "desempleo.csv", ["valor"], desempleo),
     ("Tasa de la Fed", "fed.csv", ["inferior", "superior"], fed),

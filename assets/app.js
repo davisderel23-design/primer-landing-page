@@ -7,7 +7,7 @@ const INDICADORES = [
     titulo: "Inflación al consumidor (IPC)",
     icono: "🛒",
     archivo: "data/inflacion.csv",
-    fuente: "CPI y Core CPI, variación anual · BLS",
+    fuente: "CPI y Core CPI, anual (y/y) y mensual (m/m) · BLS",
     unidad: "%",
     decimales: 1,
     unidadCambio: "pp",
@@ -20,7 +20,7 @@ const INDICADORES = [
     titulo: "Inflación PCE",
     icono: "🧾",
     archivo: "data/pce.csv",
-    fuente: "PCE y Core PCE, variación anual · BEA",
+    fuente: "PCE y Core PCE, anual (y/y) y mensual (m/m) · BEA",
     unidad: "%",
     decimales: 1,
     unidadCambio: "pp",
@@ -107,6 +107,9 @@ function aPuntos(filas, ind) {
       valor: ind.esRango ? numero(f.superior) : numero(f.valor),
       inferior: ind.esRango ? numero(f.inferior) : null,
       valor2: ind.segunda ? numero(f[ind.segunda.columna]) : NaN,
+      // Variación mensual (m/m), si el archivo la trae
+      mensual: numero(f.mensual),
+      mensual2: numero(f.mensual_sub),
     }))
     .filter((p) => p.periodo && Number.isFinite(p.valor));
   puntos.sort((a, b) => a.periodo.localeCompare(b.periodo));
@@ -147,6 +150,12 @@ function textoCambio(actual, anterior, ind, etiquetaAnterior) {
   return `<span class="flecha" aria-label="${palabra}">${flecha}</span> ${fmt(Math.abs(dif), ind.decimales)} ${ind.unidadCambio}${vs}`;
 }
 
+// Texto de la variación mensual: "+0.3 %" o "sin dato"
+function textoMensual(v) {
+  if (!Number.isFinite(v)) return "sin dato";
+  return `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmt(Math.abs(v), 1)} %`;
+}
+
 // ---------- Tarjeta ----------
 
 function crearTarjeta(ind) {
@@ -182,14 +191,16 @@ function llenarTarjeta(art, ind, puntos) {
           <p class="etq"><span class="muestra"></span>${ind.nombre1}</p>
           <p class="valor" data-valor>${textoValor(ultimo, ind)}${unidad}</p>
           <p class="cambio" data-cambio>${textoCambio(ultimo.valor, anterior?.valor, ind)}</p>
+          <p class="mensual" data-mensual>Mensual (m/m): <strong>${textoMensual(ultimo.mensual)}</strong></p>
         </div>
         <div>
           <p class="etq"><span class="muestra rayada"></span>${ind.segunda.nombre}</p>
           <p class="valor" data-valor2>${v2}${unidad}</p>
           <p class="cambio" data-cambio2>${textoCambio(ultimo.valor2, anterior?.valor2, ind)}</p>
+          <p class="mensual" data-mensual2>Mensual (m/m): <strong>${textoMensual(ultimo.mensual2)}</strong></p>
         </div>
       </div>
-      <p class="periodo">Último dato: ${ultimo.etiqueta}${anterior ? ` · cambio frente a ${anterior.etiqueta}` : ""}</p>`;
+      <p class="periodo">Número grande: variación anual (y/y) · ${ultimo.etiqueta}. La flecha compara con la anual de ${anterior ? anterior.etiqueta : "el mes anterior"}.</p>`;
   } else {
     cifras = `
       <p class="valor" data-valor>${textoValor(ultimo, ind)}${unidad}</p>
@@ -200,14 +211,18 @@ function llenarTarjeta(art, ind, puntos) {
   }
 
   const cabeceraTabla = dos
-    ? `<th>Mes</th><th>${ind.nombre1}</th><th>${ind.segunda.nombre}</th>`
+    ? `<th>Mes</th><th>${ind.nombre1}<br><small>y/y · m/m</small></th><th>${ind.segunda.nombre}<br><small>y/y · m/m</small></th>`
     : `<th>Mes</th><th>${ind.esRango ? "Rango" : "Valor"}</th>`;
   const filasTabla = recientes
     .slice()
     .reverse()
     .map((p) => {
-      const c2 = dos ? `<td>${Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "–"}</td>` : "";
-      return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)}</td>${c2}</tr>`;
+      if (dos) {
+        const mm = (v) => (Number.isFinite(v) ? textoMensual(v).replace(" %", "") : "–");
+        const a2 = Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "–";
+        return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)} · ${mm(p.mensual)}</td><td>${a2} · ${mm(p.mensual2)}</td></tr>`;
+      }
+      return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)}</td></tr>`;
     })
     .join("");
 
@@ -370,7 +385,9 @@ function dibujarGrafica(cont, puntos, ind) {
     let html;
     if (dos) {
       const v2 = Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "sin dato";
-      html = `${p.etiqueta}<strong>${conUnidad(fmt(p.valor, ind.decimales), ind)} <small>general</small></strong><span class="extra">${v2} subyacente</span>`;
+      html = `${p.etiqueta}<strong>${conUnidad(fmt(p.valor, ind.decimales), ind)} <small>general y/y</small></strong>` +
+        `<span class="extra">${v2} subyacente y/y</span>` +
+        `<span class="extra">m/m: ${textoMensual(p.mensual)} gral. · ${textoMensual(p.mensual2)} sub.</span>`;
     } else {
       const extra = ind.esRango
         ? `<span class="extra">Rango: ${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)} %</span>`
@@ -380,12 +397,19 @@ function dibujarGrafica(cont, puntos, ind) {
     cuadro.innerHTML = html;
     cuadro.hidden = false;
     const mitad = cuadro.offsetWidth / 2;
-    const cx = Math.max(mitad, Math.min(ancho - mitad, x(i)));
-    cuadro.style.left = `${cx}px`;
-    // Arriba del punto (o de la barra) si cabe; si no, abajo
+    const alto_c = cuadro.offsetHeight;
+    // Arriba del punto (o de la barra) si cabe; si no, al costado, para no tapar el resto de la tarjeta
     const alturaRef = barras ? Math.min(y(0), y(p.valor)) : Math.min(y(p.valor), dos && Number.isFinite(p.valor2) ? y(p.valor2) : Infinity);
-    const top = alturaRef - cuadro.offsetHeight - 10;
-    cuadro.style.top = `${top >= -8 ? top : Math.max(y(p.valor), barras ? y(0) : 0) + 12}px`;
+    const top = alturaRef - alto_c - 10;
+    let cx;
+    if (top >= -8) {
+      cx = x(i);
+      cuadro.style.top = `${top}px`;
+    } else {
+      cx = x(i) > ancho / 2 ? x(i) - mitad - 14 : x(i) + mitad + 14;
+      cuadro.style.top = `${Math.max(-8, Math.min(alto - alto_c - 24, alturaRef - alto_c / 2))}px`;
+    }
+    cuadro.style.left = `${Math.max(mitad, Math.min(ancho - mitad, cx))}px`;
   }
   function indiceCercano(ev) {
     const r = svg.getBoundingClientRect();
