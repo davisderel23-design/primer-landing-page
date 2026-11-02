@@ -203,6 +203,9 @@ h1, h2 { letter-spacing: -.01em; }
 .doble .cambio { font-size: .8rem; padding: 3px 8px; }
 .etq { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .78rem; font-weight: 600; color: var(--texto-2); }
 .muestra { flex: none; width: 18px; height: 0; border-top: 3px solid var(--acento); border-radius: 2px; }
+.mensual { margin: 0; font-size: .8rem; color: var(--texto-2); }
+.mensual strong { color: var(--texto); }
+details.tabla th small { font-weight: 500; color: var(--texto-3); }
 .muestra.rayada { border-top: 3px dashed var(--acento-2); }
 
 /* ============ Gráficas ============ */
