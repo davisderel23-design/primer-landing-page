@@ -1,7 +1,7 @@
 # Economía de EE. UU. — panel de datos
 
-Panel web sencillo (en español, pensado para el teléfono) con inflación, desempleo,
-tasa de la Fed, dólar y poder de compra del dólar.
+Panel web sencillo (en español, pensado para el teléfono) con inflación (CPI y PCE,
+general y subyacente), empleo (NFP), desempleo, tasa de la Fed, dólar y poder de compra.
 
 ## Cómo está organizado
 
@@ -18,7 +18,9 @@ tasa de la Fed, dólar y poder de compra del dólar.
 
 | Indicador | Serie | Cálculo |
 |---|---|---|
-| Inflación | `CPIAUCNS` | Variación % frente al mismo mes del año anterior |
+| Inflación (CPI) | `CPIAUCNS` (general), `CPILFENS` (Core CPI) | Variación % frente al mismo mes del año anterior |
+| Inflación PCE | `PCEPI` (general), `PCEPILFE` (Core PCE) — BEA | Variación % frente al mismo mes del año anterior |
+| Empleo (NFP) | `PAYEMS` | Empleos creados en el mes (miles) = total del mes − total del mes anterior |
 | Desempleo | `UNRATE` | Tal cual |
 | Tasa de la Fed | `DFEDTARL`, `DFEDTARU` | Último dato diario de cada mes |
 | Dólar | `DTWEXBGS` (índice amplio, ene 2006 = 100) | Último dato diario de cada mes |

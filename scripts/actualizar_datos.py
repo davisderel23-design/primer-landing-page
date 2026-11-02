@@ -105,16 +105,48 @@ def revisar_rango(nombre, valores, minimo, maximo):
         raise FuenteFallo(f"{nombre}: valores fuera de lo razonable ({malos[:3]})")
 
 
-def inflacion(sim):
-    # IPC sin ajuste estacional → variación frente al mismo mes del año anterior
-    ipc = descargar("CPIAUCNS", sim)
-    filas = {}
-    for periodo, v in ipc.items():
+def variacion_anual(indice):
+    """{periodo: nivel} → {periodo: % frente al mismo mes del año anterior}."""
+    resultado = {}
+    for periodo, v in indice.items():
         a, m = periodo.split("-")
         hace_un_ano = f"{int(a) - 1}-{m}"
-        if hace_un_ano in ipc:
-            filas[periodo] = {"valor": f"{(v / ipc[hace_un_ano] - 1) * 100:.1f}"}
-    revisar_rango("Inflación", [float(f["valor"]) for f in filas.values()], -5, 25)
+        if hace_un_ano in indice:
+            resultado[periodo] = (v / indice[hace_un_ano] - 1) * 100
+    return resultado
+
+
+def general_y_subyacente(nombre, serie_general, serie_subyacente, sim):
+    general = variacion_anual(descargar(serie_general, sim))
+    subyacente = variacion_anual(descargar(serie_subyacente, sim))
+    revisar_rango(nombre, list(general.values()) + list(subyacente.values()), -5, 25)
+    return {
+        p: {"valor": f"{v:.1f}", "subyacente": f"{subyacente[p]:.1f}" if p in subyacente else ""}
+        for p, v in general.items()
+    }
+
+
+def inflacion(sim):
+    # IPC (CPI) general y subyacente (sin alimentos ni energía), sin ajuste estacional,
+    # como la cifra anual que publica el BLS
+    return general_y_subyacente("Inflación (IPC)", "CPIAUCNS", "CPILFENS", sim)
+
+
+def pce(sim):
+    # Índice de precios PCE general y subyacente (BEA); es la medida que vigila la Fed (meta: 2 %)
+    return general_y_subyacente("Inflación PCE", "PCEPI", "PCEPILFE", sim)
+
+
+def empleo(sim):
+    # Nóminas no agrícolas (NFP): empleos creados cada mes = total del mes − total del mes anterior
+    total = descargar("PAYEMS", sim)  # en miles de personas
+    filas = {}
+    for periodo, v in total.items():
+        a, m = map(int, periodo.split("-"))
+        anterior = f"{a - 1}-12" if m == 1 else f"{a}-{m - 1:02d}"
+        if anterior in total:
+            filas[periodo] = {"valor": f"{v - total[anterior]:.0f}"}
+    revisar_rango("Empleo (NFP)", [float(f["valor"]) for f in filas.values()], -25000, 25000)
     return filas
 
 
@@ -148,7 +180,9 @@ def dolar(sim):
 
 
 INDICADORES = [
-    ("Inflación", "inflacion.csv", ["valor"], inflacion),
+    ("Inflación", "inflacion.csv", ["valor", "subyacente"], inflacion),
+    ("Inflación PCE", "pce.csv", ["valor", "subyacente"], pce),
+    ("Empleo (NFP)", "empleo.csv", ["valor"], empleo),
     ("Desempleo", "desempleo.csv", ["valor"], desempleo),
     ("Tasa de la Fed", "fed.csv", ["inferior", "superior"], fed),
     ("Dólar", "dolar.csv", ["valor"], dolar),

@@ -14,9 +14,11 @@
   --aviso-fondo: #fff4d6;
   --aviso-borde: #eda100;
   --c-inflacion: #2a78d6;
+  --c-pce: #c08400;
+  --c-empleo: #15a070;
   --c-desempleo: #eb6834;
-  --c-fed: #15a070;
-  --c-dolar: #6250d6;
+  --c-fed: #6250d6;
+  --c-dolar: #008300;
   --c-poder: #d25e8e;
 }
 @media (prefers-color-scheme: dark) {
@@ -34,9 +36,11 @@
     --aviso-fondo: #3a2e0c;
     --aviso-borde: #c98500;
     --c-inflacion: #3987e5;
+    --c-pce: #c98500;
+    --c-empleo: #199e70;
     --c-desempleo: #d95926;
-    --c-fed: #199e70;
-    --c-dolar: #9085e9;
+    --c-fed: #9085e9;
+    --c-dolar: #008300;
     --c-poder: #d55181;
   }
 }
@@ -54,14 +58,18 @@
   --aviso-fondo: #3a2e0c;
   --aviso-borde: #c98500;
   --c-inflacion: #3987e5;
+  --c-pce: #c98500;
+  --c-empleo: #199e70;
   --c-desempleo: #d95926;
-  --c-fed: #199e70;
-  --c-dolar: #9085e9;
+  --c-fed: #9085e9;
+  --c-dolar: #008300;
   --c-poder: #d55181;
 }
 
 /* Cada tarjeta toma su color */
 #tarjeta-inflacion { --acento: var(--c-inflacion); }
+#tarjeta-pce { --acento: var(--c-pce); }
+#tarjeta-empleo { --acento: var(--c-empleo); }
 #tarjeta-desempleo { --acento: var(--c-desempleo); }
 #tarjeta-fed { --acento: var(--c-fed); }
 #tarjeta-dolar { --acento: var(--c-dolar); }
@@ -155,6 +163,7 @@ h1, h2 { letter-spacing: -.01em; }
 .tarjeta:nth-child(3) { animation-delay: .1s; }
 .tarjeta:nth-child(4) { animation-delay: .15s; }
 .tarjeta:nth-child(5) { animation-delay: .2s; }
+.tarjeta:nth-child(n+6) { animation-delay: .25s; }
 @keyframes aparecer { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .tarjeta { animation: none; } }
 
@@ -173,7 +182,7 @@ h1, h2 { letter-spacing: -.01em; }
 .tarjeta .fuente { font-size: .78rem; color: var(--texto-3); margin: 0; }
 
 .valor { font-size: 2.7rem; font-weight: 800; line-height: 1.1; margin: 8px 0 6px; letter-spacing: -.02em; }
-.valor .unidad { font-size: 1.3rem; font-weight: 600; color: var(--texto-2); margin-left: 2px; }
+.valor .unidad { font-size: 1.3rem; font-weight: 600; color: var(--texto-2); margin-left: .12em; }
 .cambio {
   display: inline-block;
   margin: 0 0 6px;
@@ -187,12 +196,29 @@ h1, h2 { letter-spacing: -.01em; }
 .cambio .flecha { font-weight: 800; }
 .periodo { font-size: .82rem; color: var(--texto-3); margin: 0; }
 
+/* Dos cifras lado a lado (general y subyacente) */
+.doble { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 6px; }
+.doble .valor { font-size: 2.1rem; margin: 2px 0 6px; }
+.doble .valor .unidad { font-size: 1.05rem; }
+.doble .cambio { font-size: .8rem; padding: 3px 8px; }
+.etq { display: flex; align-items: center; gap: 6px; margin: 0; font-size: .78rem; font-weight: 600; color: var(--texto-2); }
+.muestra { flex: none; width: 18px; height: 0; border-top: 3px solid var(--acento); border-radius: 2px; }
+.muestra.rayada { border-top: 3px dashed var(--acento-2); }
+
 /* ============ Gráficas ============ */
 .grafica { position: relative; margin-top: 10px; touch-action: pan-y; }
 .grafica svg { display: block; width: 100%; height: 170px; overflow: visible; }
 .grafica svg:focus { outline: none; }
 .grafica svg:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; border-radius: 4px; }
+.tarjeta { --acento-2: color-mix(in srgb, var(--acento) 65%, var(--texto)); }
 .grafica .area { fill: var(--acento); fill-opacity: .1; stroke: none; }
+.grafica .linea2 { stroke: var(--acento-2); stroke-dasharray: 6 4; stroke-width: 2.25; }
+.grafica .punto2 { stroke: var(--acento-2); }
+.grafica .punto2.activo { fill: var(--acento-2); }
+.grafica .barra { fill: var(--acento); }
+.grafica .barra.negativa { fill: var(--acento-2); }
+.grafica .barra.activo { stroke: var(--texto); stroke-width: 2; }
+.grafica .cero { stroke: var(--texto-3); stroke-width: 1; }
 .grafica .linea { fill: none; stroke: var(--acento); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
 .grafica .punto { fill: var(--superficie); stroke: var(--acento); stroke-width: 2; }
 .grafica .punto.activo { fill: var(--acento); stroke: var(--superficie); }
@@ -214,6 +240,7 @@ h1, h2 { letter-spacing: -.01em; }
 }
 .cuadro[hidden] { display: none; }
 .cuadro strong { display: block; font-size: 1rem; }
+.cuadro small { font-weight: 500; opacity: .85; }
 .cuadro .extra { display: block; font-size: .8rem; opacity: .85; }
 
 /* ============ Tabla "Ver los números" ============ */
