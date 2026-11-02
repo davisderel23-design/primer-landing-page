@@ -96,6 +96,24 @@ def _descargar(serie, fuente_simulada=None, diaria=False):
     return resultado
 
 
+def info_serie(serie, fuente_simulada=None):
+    """Datos de la serie en FRED: sobre todo 'last_updated', la fecha en que FRED
+    cargó la versión revisada más reciente. Si falla, devuelve None (no es grave)."""
+    if fuente_simulada:
+        ruta = Path(fuente_simulada) / f"{serie}_info.json"
+        return json.loads(ruta.read_text()) if ruta.exists() else None
+    clave = os.environ.get("FRED_API_KEY", "").strip()
+    if not clave:
+        return None
+    url = "https://api.stlouisfed.org/fred/series?" + urllib.parse.urlencode(
+        {"series_id": serie, "api_key": clave, "file_type": "json"})
+    try:
+        with urllib.request.urlopen(url, timeout=30) as r:
+            return (json.load(r).get("seriess") or [None])[0]
+    except Exception:
+        return None
+
+
 # ---------------------------------------------------------------- indicadores
 # Cada función devuelve {periodo: {columna: texto}} con los datos ya listos.
 
@@ -158,9 +176,32 @@ def inflacion(sim):
 
 
 def pce(sim):
-    # Índice de precios PCE general y subyacente (BEA); es la medida que vigila la Fed (meta: 2 %).
-    # La BEA solo publica estas series con ajuste estacional: se usan para y/y y m/m.
-    return general_y_subyacente("Inflación PCE", "PCEPI", "PCEPILFE", "PCEPI", "PCEPILFE", sim)
+    """Índice de precios PCE general (PCEPI) y subyacente (PCEPILFE), de la BEA vía FRED.
+
+    Todo sale de UNA sola descarga de cada serie, en su versión más reciente
+    (FRED entrega por defecto la última revisión). Con esos índices se calculan
+    la variación anual y la mensual, y los índices se guardan en el CSV para
+    poder comprobar cada porcentaje. El archivo se reescribe completo en cada
+    corrida, para que nunca queden mezclados datos de versiones distintas."""
+    general = descargar("PCEPI", sim)
+    sub = descargar("PCEPILFE", sim)
+    revisar_rango("Inflación PCE (índices)", list(general.values()) + list(sub.values()), 10, 1000)
+    a_gen, a_sub = variacion_anual(general), variacion_anual(sub)
+    m_gen, m_sub = variacion_mensual(general), variacion_mensual(sub)
+    revisar_rango("Inflación PCE", list(a_gen.values()) + list(a_sub.values()), -5, 25)
+    revisar_rango("Inflación PCE mensual", list(m_gen.values()) + list(m_sub.values()), -5, 5)
+    texto = lambda d, p, dec=1: f"{d[p]:.{dec}f}" if p in d else ""
+    return {
+        p: {
+            "valor": texto(a_gen, p),
+            "subyacente": texto(a_sub, p),
+            "mensual": texto(m_gen, p),
+            "mensual_sub": texto(m_sub, p),
+            "indice_general": texto(general, p, 3),
+            "indice_sub": texto(sub, p, 3),
+        }
+        for p in sorted(set(a_gen) & set(a_sub))
+    }
 
 
 def empleo(sim):
@@ -207,7 +248,9 @@ def dolar(sim):
 
 INDICADORES = [
     ("Inflación", "inflacion.csv", ["valor", "subyacente", "mensual", "mensual_sub"], inflacion),
-    ("Inflación PCE", "pce.csv", ["valor", "subyacente", "mensual", "mensual_sub"], pce),
+    ("Inflación PCE", "pce.csv",
+     ["valor", "subyacente", "mensual", "mensual_sub", "indice_general", "indice_sub"], pce,
+     {"reemplazar": True, "series": ["PCEPI", "PCEPILFE"], "fuente": "BEA vía FRED (Fed de St. Louis)"}),
     ("Empleo (NFP)", "empleo.csv", ["valor"], empleo),
     ("Desempleo", "desempleo.csv", ["valor"], desempleo),
     ("Tasa de la Fed", "fed.csv", ["inferior", "superior"], fed),
@@ -254,6 +297,28 @@ def fusionar(viejas, nuevas, columnas):
 
 # ---------------------------------------------------------------- principal
 
+def filas_cambiadas(previas, nuevas, columnas):
+    """Meses cuyo valor cambió respecto del archivo anterior (en cualquier columna que ya existía)."""
+    for p, f in nuevas.items():
+        vieja = previas.get(p)
+        if vieja is None:
+            continue
+        if any(c in vieja and vieja[c] != f.get(c, "") for c in columnas):
+            yield p
+
+
+def registrar_fuente(estado, nombre, opciones, sim):
+    """Guarda en estado.json de dónde salen los datos y la fecha de la versión revisada."""
+    fuentes = estado.setdefault("fuentes", {})
+    previo = fuentes.get(nombre, {})
+    versiones = dict(previo.get("versiones", {}))
+    for serie in opciones["series"]:
+        info = info_serie(serie, sim)
+        if info and info.get("last_updated"):
+            versiones[serie] = info["last_updated"]
+    fuentes[nombre] = {"fuente": opciones["fuente"], "series": opciones["series"], "versiones": versiones}
+
+
 def fecha_larga(d):
     return f"{d.day} de {MESES_LARGOS[d.month - 1]} de {d.year}"
 
@@ -273,7 +338,8 @@ def main():
     hubo_cambios = False
     algun_exito = False
 
-    for nombre, archivo, columnas, obtener in INDICADORES:
+    for nombre, archivo, columnas, obtener, *extra in INDICADORES:
+        opciones = extra[0] if extra else {}
         ruta = DATOS / archivo
         try:
             nuevas = obtener(args.simulado)
@@ -289,7 +355,17 @@ def main():
 
         algun_exito = True
         # La primera vez con datos reales se descartan los datos de ejemplo
-        viejas = {} if de_ejemplo else leer_csv(ruta)
+        # Con "reemplazar", el archivo queda exactamente igual a la descarga de hoy
+        # (versión más reciente de FRED), sin filas de descargas anteriores
+        viejas = {} if de_ejemplo or opciones.get("reemplazar") else leer_csv(ruta)
+        if opciones.get("reemplazar"):
+            previas = leer_csv(ruta)
+            cambiados = sorted(p for p in filas_cambiadas(previas, nuevas, columnas))
+            if cambiados:
+                print(f"       {nombre}: meses con valores distintos a la versión anterior: "
+                      + ", ".join(etiqueta(p) for p in cambiados))
+        if opciones.get("series"):
+            registrar_fuente(estado, nombre, opciones, args.simulado)
         filas, agregados, corregidos = fusionar(viejas, nuevas, columnas)
         texto = escribir_csv(filas, columnas)
         antes = ruta.read_text(encoding="utf-8") if ruta.exists() else ""
@@ -297,8 +373,9 @@ def main():
             ruta.write_text(texto, encoding="utf-8")
             hubo_cambios = True
         ultimo = max(filas)
-        print(f"OK     {nombre}: último dato {etiqueta(ultimo)} = {', '.join(filas[ultimo].values())} "
-              f"({agregados} meses nuevos, {corregidos} corregidos)")
+        detalle = ("archivo reescrito completo con la versión más reciente" if opciones.get("reemplazar")
+                   else f"{agregados} meses nuevos, {corregidos} corregidos")
+        print(f"OK     {nombre}: último dato {etiqueta(ultimo)} = {', '.join(filas[ultimo].values())} ({detalle})")
 
     if de_ejemplo and algun_exito:
         if avisos:

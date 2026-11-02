@@ -20,12 +20,22 @@ const INDICADORES = [
     titulo: "Inflación PCE",
     icono: "🧾",
     archivo: "data/pce.csv",
-    fuente: "PCE y Core PCE, anual (y/y) y mensual (m/m) · BEA",
+    fuente: "Core PCE y PCE · BEA",
     unidad: "%",
     decimales: 1,
     unidadCambio: "pp",
-    nombre1: "PCE general",
-    segunda: { columna: "subyacente", nombre: "PCE subyacente" },
+    // La subyacente es el dato principal; la general es el dato de apoyo
+    destacado: true,
+    columnas: { valor: "subyacente", valor2: "valor", mensual: "mensual_sub", mensual2: "mensual" },
+    nombre1: "PCE subyacente (Core PCE)",
+    corto1: "subyacente",
+    segunda: { columna: "valor", nombre: "PCE general", corto: "general" },
+    explicacion:
+      "La subyacente quita comida y energía y es la que más mira la Fed (meta: 2 %). " +
+      "La general incluye todo, así que muestra cuánto pesan el petróleo y los alimentos.",
+    nombreFuente: "Inflación PCE",
+    series: ["PCEPILFE", "PCEPI"],
+    nombresSeries: { PCEPILFE: "subyacente", PCEPI: "general" },
   },
   {
     id: "empleo",
@@ -100,16 +110,18 @@ function numero(texto) {
 }
 
 function aPuntos(filas, ind) {
+  // Qué columna del archivo va en cada lugar (la tarjeta PCE las invierte: subyacente primero)
+  const c = { valor: "valor", valor2: ind.segunda?.columna, mensual: "mensual", mensual2: "mensual_sub", ...(ind.columnas || {}) };
   const puntos = filas
     .map((f) => ({
       periodo: f.periodo,
       etiqueta: f.etiqueta,
-      valor: ind.esRango ? numero(f.superior) : numero(f.valor),
+      valor: ind.esRango ? numero(f.superior) : numero(f[c.valor]),
       inferior: ind.esRango ? numero(f.inferior) : null,
-      valor2: ind.segunda ? numero(f[ind.segunda.columna]) : NaN,
+      valor2: ind.segunda ? numero(f[c.valor2]) : NaN,
       // Variación mensual (m/m), si el archivo la trae
-      mensual: numero(f.mensual),
-      mensual2: numero(f.mensual_sub),
+      mensual: numero(f[c.mensual]),
+      mensual2: numero(f[c.mensual2]),
     }))
     .filter((p) => p.periodo && Number.isFinite(p.valor));
   puntos.sort((a, b) => a.periodo.localeCompare(b.periodo));
@@ -182,7 +194,20 @@ function llenarTarjeta(art, ind, puntos) {
   const dos = Boolean(ind.segunda);
 
   let cifras;
-  if (dos) {
+  if (ind.destacado) {
+    // Dato principal grande (anual + mensual debajo) y dato de apoyo más chico (solo anual)
+    const v2 = Number.isFinite(ultimo.valor2) ? conUnidad(fmt(ultimo.valor2, ind.decimales), ind) : "sin dato";
+    cifras = `
+      <p class="etq"><span class="muestra"></span>${ind.nombre1} · anual (y/y)</p>
+      <p class="valor" data-valor>${textoValor(ultimo, ind)}${unidad}</p>
+      <p class="cambio" data-cambio>${textoCambio(ultimo.valor, anterior?.valor, ind, anterior?.etiqueta)}</p>
+      <p class="mensual" data-mensual>Mensual (m/m): <strong>${textoMensual(ultimo.mensual)}</strong></p>
+      <p class="apoyo"><span class="muestra rayada"></span>${ind.segunda.nombre} · anual:
+        <strong data-valor2>${v2}</strong>
+        <span class="apoyo-cambio" data-cambio2>${textoCambio(ultimo.valor2, anterior?.valor2, ind)}</span></p>
+      <p class="explica">${ind.explicacion}</p>
+      <p class="periodo">Último dato: ${ultimo.etiqueta}</p>`;
+  } else if (dos) {
     // Dos cifras lado a lado: general y subyacente
     const v2 = Number.isFinite(ultimo.valor2) ? fmt(ultimo.valor2, ind.decimales) : "–";
     cifras = `
@@ -210,7 +235,9 @@ function llenarTarjeta(art, ind, puntos) {
       }</p>`;
   }
 
-  const cabeceraTabla = dos
+  const cabeceraTabla = ind.destacado
+    ? `<th>Mes</th><th>Subyacente<br><small>y/y · m/m</small></th><th>General<br><small>y/y</small></th>`
+    : dos
     ? `<th>Mes</th><th>${ind.nombre1}<br><small>y/y · m/m</small></th><th>${ind.segunda.nombre}<br><small>y/y · m/m</small></th>`
     : `<th>Mes</th><th>${ind.esRango ? "Rango" : "Valor"}</th>`;
   const filasTabla = recientes
@@ -220,6 +247,7 @@ function llenarTarjeta(art, ind, puntos) {
       if (dos) {
         const mm = (v) => (Number.isFinite(v) ? textoMensual(v).replace(" %", "") : "–");
         const a2 = Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "–";
+        if (ind.destacado) return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)} · ${mm(p.mensual)}</td><td>${a2}</td></tr>`;
         return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)} · ${mm(p.mensual)}</td><td>${a2} · ${mm(p.mensual2)}</td></tr>`;
       }
       return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)}</td></tr>`;
@@ -234,7 +262,9 @@ function llenarTarjeta(art, ind, puntos) {
     <details class="tabla">
       <summary>Ver los números</summary>
       <table><thead><tr>${cabeceraTabla}</tr></thead><tbody>${filasTabla}</tbody></table>
-    </details>`;
+    </details>
+    ${ind.nombreFuente ? `<p class="fuente-datos" data-fuente>Cargando la fuente de los datos…</p>` : ""}`;
+  if (ind.nombreFuente) mostrarFuente(art, ind);
 
   const cont = art.querySelector(".grafica");
   const dibujar = () => dibujarGrafica(cont, recientes, ind);
@@ -385,9 +415,13 @@ function dibujarGrafica(cont, puntos, ind) {
     let html;
     if (dos) {
       const v2 = Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "sin dato";
-      html = `${p.etiqueta}<strong>${conUnidad(fmt(p.valor, ind.decimales), ind)} <small>general y/y</small></strong>` +
-        `<span class="extra">${v2} subyacente y/y</span>` +
-        `<span class="extra">m/m: ${textoMensual(p.mensual)} gral. · ${textoMensual(p.mensual2)} sub.</span>`;
+      const c1 = ind.corto1 || "general";
+      const c2 = ind.segunda.corto || "subyacente";
+      html = `${p.etiqueta}<strong>${conUnidad(fmt(p.valor, ind.decimales), ind)} <small>${c1} y/y</small></strong>` +
+        `<span class="extra">${v2} ${c2} y/y</span>` +
+        (ind.destacado
+          ? `<span class="extra">m/m ${c1}: ${textoMensual(p.mensual)}</span>`
+          : `<span class="extra">m/m: ${textoMensual(p.mensual)} gral. · ${textoMensual(p.mensual2)} sub.</span>`);
     } else {
       const extra = ind.esRango
         ? `<span class="extra">Rango: ${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)} %</span>`
@@ -560,10 +594,37 @@ function fechaLarga(iso) {
   return `${d} de ${meses[mes - 1]} de ${a}`;
 }
 
+// estado.json se lee una sola vez y lo usan varias partes de la página
+const ESTADO = cargarTexto("data/estado.json").then(JSON.parse);
+ESTADO.catch(() => {});
+
+// Debajo de la tabla: de dónde salen los datos, versión revisada y fecha de actualización
+async function mostrarFuente(art, ind) {
+  const p = art.querySelector("[data-fuente]");
+  try {
+    const estado = await ESTADO;
+    const f = (estado.fuentes || {})[ind.nombreFuente] || {};
+    const nombres = ind.nombresSeries || {};
+    const series = (f.series || ind.series || [])
+      .slice()
+      .sort((a, b) => (nombres[a] === "subyacente" ? -1 : nombres[b] === "subyacente" ? 1 : 0))
+      .map((x) => (nombres[x] ? `${x} (${nombres[x]})` : x))
+      .join(" y ");
+    const fechas = Object.values(f.versiones || {}).map((v) => String(v).slice(0, 10)).sort();
+    const version = fechas.length ? ` Versión revisada más reciente, publicada en FRED el ${fechaLarga(fechas[fechas.length - 1])}.` : "";
+    p.textContent =
+      `Fuente: ${f.fuente || "BEA vía FRED (Fed de St. Louis)"}${series ? `, series ${series}` : ""}. ` +
+      `Porcentajes calculados con esos índices.${version} ` +
+      `Última actualización del panel: ${fechaLarga(estado.actualizado)}.`;
+  } catch (e) {
+    p.textContent = "Fuente: BEA vía FRED (Fed de St. Louis).";
+  }
+}
+
 async function cargarEstado() {
   const nota = document.getElementById("nota-actualizacion");
   try {
-    const estado = JSON.parse(await cargarTexto("data/estado.json"));
+    const estado = await ESTADO;
     nota.textContent = `Última actualización: ${fechaLarga(estado.actualizado)}.`;
     const chip = document.getElementById("fecha-encabezado");
     if (chip) chip.textContent = `Actualizado el ${fechaLarga(estado.actualizado)}`;

@@ -19,7 +19,7 @@ general y subyacente), empleo (NFP), desempleo, tasa de la Fed, dólar y poder d
 | Indicador | Serie | Cálculo |
 |---|---|---|
 | Inflación (CPI) | y/y: `CPIAUCNS`, `CPILFENS` (sin ajuste estacional) · m/m: `CPIAUCSL`, `CPILFESL` (con ajuste) | y/y = frente al mismo mes del año anterior; m/m = frente al mes anterior |
-| Inflación PCE | `PCEPI` (general), `PCEPILFE` (Core PCE) — BEA, con ajuste estacional | y/y y m/m |
+| Inflación PCE | `PCEPILFE` (Core PCE, dato principal), `PCEPI` (general) — BEA, con ajuste estacional | y/y y m/m calculados con los índices, que también se guardan en `pce.csv`. El archivo se reescribe completo en cada corrida con la versión revisada más reciente; la fecha de esa versión queda en `estado.json` |
 | Empleo (NFP) | `PAYEMS` | Empleos creados en el mes (miles) = total del mes − total del mes anterior |
 | Desempleo | `UNRATE` | Tal cual |
 | Tasa de la Fed | `DFEDTARL`, `DFEDTARU` | Último dato diario de cada mes |
