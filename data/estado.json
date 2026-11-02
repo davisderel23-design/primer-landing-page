@@ -2,5 +2,18 @@
   "actualizado": "2026-11-02",
   "datos_de_ejemplo": false,
   "avisos": [],
-  "avisos_detalle": []
+  "avisos_detalle": [],
+  "fuentes": {
+    "Inflación PCE": {
+      "fuente": "BEA vía FRED (Fed de St. Louis)",
+      "series": [
+        "PCEPI",
+        "PCEPILFE"
+      ],
+      "versiones": {
+        "PCEPI": "2026-10-29 07:43:37-05",
+        "PCEPILFE": "2026-10-29 07:43:35-05"
+      }
+    }
+  }
 }
