@@ -4,13 +4,40 @@
 const INDICADORES = [
   {
     id: "inflacion",
-    titulo: "Inflación",
+    titulo: "Inflación al consumidor (IPC)",
     icono: "🛒",
     archivo: "data/inflacion.csv",
-    fuente: "IPC, variación anual · BLS",
+    fuente: "CPI y Core CPI, variación anual · BLS",
     unidad: "%",
     decimales: 1,
     unidadCambio: "pp",
+    // Segunda línea de la gráfica
+    nombre1: "CPI general",
+    segunda: { columna: "subyacente", nombre: "CPI subyacente" },
+  },
+  {
+    id: "pce",
+    titulo: "Inflación PCE",
+    icono: "🧾",
+    archivo: "data/pce.csv",
+    fuente: "PCE y Core PCE, variación anual · BEA",
+    unidad: "%",
+    decimales: 1,
+    unidadCambio: "pp",
+    nombre1: "PCE general",
+    segunda: { columna: "subyacente", nombre: "PCE subyacente" },
+  },
+  {
+    id: "empleo",
+    titulo: "Empleo (NFP)",
+    icono: "👷",
+    archivo: "data/empleo.csv",
+    fuente: "Nóminas no agrícolas, empleos creados en el mes · BLS",
+    unidad: "mil",
+    decimales: 0,
+    unidadCambio: "mil",
+    conSigno: true,
+    barras: true,
   },
   {
     id: "desempleo",
@@ -67,17 +94,20 @@ async function cargarTexto(ruta) {
   return r.text();
 }
 
+// Celda vacía = sin dato (no cero)
+function numero(texto) {
+  return texto === undefined || texto === null || String(texto).trim() === "" ? NaN : Number(texto);
+}
+
 function aPuntos(filas, ind) {
   const puntos = filas
-    .map((f) => {
-      const valor = ind.esRango ? Number(f.superior) : Number(f.valor);
-      return {
-        periodo: f.periodo,
-        etiqueta: f.etiqueta,
-        valor,
-        inferior: ind.esRango ? Number(f.inferior) : null,
-      };
-    })
+    .map((f) => ({
+      periodo: f.periodo,
+      etiqueta: f.etiqueta,
+      valor: ind.esRango ? numero(f.superior) : numero(f.valor),
+      inferior: ind.esRango ? numero(f.inferior) : null,
+      valor2: ind.segunda ? numero(f[ind.segunda.columna]) : NaN,
+    }))
     .filter((p) => p.periodo && Number.isFinite(p.valor));
   puntos.sort((a, b) => a.periodo.localeCompare(b.periodo));
   return puntos;
@@ -91,19 +121,30 @@ function fmt(n, dec) {
   return (Math.round(n * f + 1e-9 * Math.sign(n)) / f).toFixed(dec);
 }
 
-function textoValor(p, ind) {
-  if (ind.esRango) return `${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)}`;
-  return fmt(p.valor, ind.decimales);
+// Número con signo (+/−) si el indicador lo pide, p. ej. empleos creados
+function fmtNum(n, ind) {
+  const t = fmt(Math.abs(n), ind.decimales);
+  if (ind.conSigno) return (n > 0 ? "+" : n < 0 ? "−" : "") + t;
+  return n < 0 ? "−" + t : t;
 }
 
-function textoCambio(ultimo, anterior, ind) {
-  if (!anterior) return "Sin dato anterior para comparar";
-  const dif = Math.round((ultimo.valor - anterior.valor) * 1000) / 1000;
-  const vs = `frente a ${anterior.etiqueta}`;
-  if (dif === 0) return `<span class="flecha">=</span> sin cambio ${vs}`;
+function textoValor(p, ind) {
+  if (ind.esRango) return `${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)}`;
+  return fmtNum(p.valor, ind);
+}
+
+function conUnidad(texto, ind) {
+  return ind.unidad ? `${texto} ${ind.unidad}` : texto;
+}
+
+function textoCambio(actual, anterior, ind, etiquetaAnterior) {
+  if (!Number.isFinite(actual) || !Number.isFinite(anterior)) return "Sin dato anterior para comparar";
+  const dif = Math.round((actual - anterior) * 1000) / 1000;
+  const vs = etiquetaAnterior ? ` frente a ${etiquetaAnterior}` : "";
+  if (dif === 0) return `<span class="flecha">=</span> sin cambio${vs}`;
   const flecha = dif > 0 ? "▲" : "▼";
   const palabra = dif > 0 ? "sube" : "baja";
-  return `<span class="flecha" aria-label="${palabra}">${flecha}</span> ${fmt(Math.abs(dif), ind.decimales)} ${ind.unidadCambio} ${vs}`;
+  return `<span class="flecha" aria-label="${palabra}">${flecha}</span> ${fmt(Math.abs(dif), ind.decimales)} ${ind.unidadCambio}${vs}`;
 }
 
 // ---------- Tarjeta ----------
@@ -129,23 +170,55 @@ function llenarTarjeta(art, ind, puntos) {
   const anterior = puntos[puntos.length - 2];
   const recientes = puntos.slice(-MESES_EN_GRAFICA);
   const unidad = ind.unidad ? `<span class="unidad">${ind.unidad}</span>` : "";
+  const dos = Boolean(ind.segunda);
 
+  let cifras;
+  if (dos) {
+    // Dos cifras lado a lado: general y subyacente
+    const v2 = Number.isFinite(ultimo.valor2) ? fmt(ultimo.valor2, ind.decimales) : "–";
+    cifras = `
+      <div class="doble">
+        <div>
+          <p class="etq"><span class="muestra"></span>${ind.nombre1}</p>
+          <p class="valor" data-valor>${textoValor(ultimo, ind)}${unidad}</p>
+          <p class="cambio" data-cambio>${textoCambio(ultimo.valor, anterior?.valor, ind)}</p>
+        </div>
+        <div>
+          <p class="etq"><span class="muestra rayada"></span>${ind.segunda.nombre}</p>
+          <p class="valor" data-valor2>${v2}${unidad}</p>
+          <p class="cambio" data-cambio2>${textoCambio(ultimo.valor2, anterior?.valor2, ind)}</p>
+        </div>
+      </div>
+      <p class="periodo">Último dato: ${ultimo.etiqueta}${anterior ? ` · cambio frente a ${anterior.etiqueta}` : ""}</p>`;
+  } else {
+    cifras = `
+      <p class="valor" data-valor>${textoValor(ultimo, ind)}${unidad}</p>
+      <p class="cambio" data-cambio>${textoCambio(ultimo.valor, anterior?.valor, ind, anterior?.etiqueta)}</p>
+      <p class="periodo">${ind.barras ? "Empleos creados en" : "Último dato:"} ${ultimo.etiqueta}${
+        ind.barras && anterior ? ` · ${anterior.etiqueta}: ${conUnidad(fmtNum(anterior.valor, ind), ind)}` : ""
+      }</p>`;
+  }
+
+  const cabeceraTabla = dos
+    ? `<th>Mes</th><th>${ind.nombre1}</th><th>${ind.segunda.nombre}</th>`
+    : `<th>Mes</th><th>${ind.esRango ? "Rango" : "Valor"}</th>`;
   const filasTabla = recientes
     .slice()
     .reverse()
-    .map((p) => `<tr><td>${p.etiqueta}</td><td>${textoValor(p, ind)}${ind.unidad ? " " + ind.unidad : ""}</td></tr>`)
+    .map((p) => {
+      const c2 = dos ? `<td>${Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "–"}</td>` : "";
+      return `<tr><td>${p.etiqueta}</td><td>${conUnidad(textoValor(p, ind), ind)}</td>${c2}</tr>`;
+    })
     .join("");
 
   art.querySelector(".cuerpo").innerHTML = `
-    <p class="valor" data-valor>${textoValor(ultimo, ind)}${unidad}</p>
-    <p class="cambio" data-cambio>${textoCambio(ultimo, anterior, ind)}</p>
-    <p class="periodo">Último dato: ${ultimo.etiqueta}</p>
+    ${cifras}
     <div class="grafica">
       <div class="cuadro" hidden></div>
     </div>
     <details class="tabla">
       <summary>Ver los números</summary>
-      <table><thead><tr><th>Mes</th><th>${ind.esRango ? "Rango" : "Valor"}</th></tr></thead><tbody>${filasTabla}</tbody></table>
+      <table><thead><tr>${cabeceraTabla}</tr></thead><tbody>${filasTabla}</tbody></table>
     </details>`;
 
   const cont = art.querySelector(".grafica");
@@ -154,7 +227,7 @@ function llenarTarjeta(art, ind, puntos) {
   new ResizeObserver(dibujar).observe(cont);
 }
 
-// ---------- Gráfica de líneas (SVG hecho a mano, sin librerías) ----------
+// ---------- Gráficas (SVG hecho a mano, sin librerías) ----------
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 function el(nombre, attrs, padre) {
@@ -180,26 +253,34 @@ function dibujarGrafica(cont, puntos, ind) {
   const ancho = cont.clientWidth;
   if (!ancho) return;
   const alto = 170;
-  const m = { izq: 36, der: 10, arr: 10, aba: 22 };
+  const m = { izq: 40, der: 10, arr: 10, aba: 22 };
   const w = ancho - m.izq - m.der;
   const h = alto - m.arr - m.aba;
+  const dos = Boolean(ind.segunda);
+  const barras = Boolean(ind.barras);
 
   cont.querySelector("svg")?.remove();
   const cuadro = cont.querySelector(".cuadro");
   cuadro.hidden = true;
 
   const valores = puntos.map((p) => p.valor);
+  if (dos) puntos.forEach((p) => Number.isFinite(p.valor2) && valores.push(p.valor2));
+  if (barras) valores.push(0); // las barras siempre parten de cero
   const marcas = marcasEje(Math.min(...valores), Math.max(...valores));
   const yMin = marcas[0];
   const yMax = marcas[marcas.length - 1];
-  const x = (i) => m.izq + (puntos.length === 1 ? w / 2 : (i * w) / (puntos.length - 1));
+  const n = puntos.length;
+  // Barras: cada mes ocupa una franja; líneas: los puntos van de borde a borde
+  const x = barras
+    ? (i) => m.izq + ((i + 0.5) * w) / n
+    : (i) => m.izq + (n === 1 ? w / 2 : (i * w) / (n - 1));
   const y = (v) => m.arr + h - ((v - yMin) / (yMax - yMin || 1)) * h;
 
   const svg = el("svg", {
     viewBox: `0 0 ${ancho} ${alto}`,
     role: "img",
     tabindex: "0",
-    "aria-label": `Gráfica de ${ind.titulo}: de ${puntos[0].etiqueta} a ${puntos[puntos.length - 1].etiqueta}. Toca un punto para ver su valor.`,
+    "aria-label": `Gráfica de ${ind.titulo}: de ${puntos[0].etiqueta} a ${puntos[n - 1].etiqueta}. Toca un punto para ver su valor.`,
   });
   cont.insertBefore(svg, cuadro);
 
@@ -208,32 +289,73 @@ function dibujarGrafica(cont, puntos, ind) {
   const decimalesDe = (v) => [0, 1, 2, 3].find((d) => Math.abs(Math.round(v * 10 ** d) - v * 10 ** d) < 1e-6) ?? 3;
   const dec = Math.max(...marcas.map(decimalesDe));
   for (const v of marcas) {
-    el("line", { class: "rejilla", x1: m.izq, x2: ancho - m.der, y1: y(v), y2: y(v) }, svg);
+    el("line", { class: v === 0 && barras ? "cero" : "rejilla", x1: m.izq, x2: ancho - m.der, y1: y(v), y2: y(v) }, svg);
     const t = el("text", { x: m.izq - 6, y: y(v) + 4, "text-anchor": "end" }, svg);
-    t.textContent = v.toFixed(dec);
+    t.textContent = v < 0 ? "−" + Math.abs(v).toFixed(dec) : v.toFixed(dec);
   }
   // Eje X: solo primer y último mes, para que no se encimen
   const etiquetaCorta = (e) => e.replace(/ (\d{2})(\d{2})$/, " $2");
-  [0, puntos.length - 1].forEach((i, k) => {
-    const t = el("text", { x: x(i), y: alto - 4, "text-anchor": k === 0 ? "start" : "end" }, svg);
+  [0, n - 1].forEach((i, k) => {
+    const t = el("text", { x: barras ? x(i) : x(i), y: alto - 4, "text-anchor": barras ? "middle" : k === 0 ? "start" : "end" }, svg);
     t.textContent = etiquetaCorta(puntos[i].etiqueta);
   });
 
-  // Línea y puntos
   const guia = el("line", { class: "guia-vertical", y1: m.arr, y2: m.arr + h, visibility: "hidden" }, svg);
-  const trazo = puntos.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.valor)}`).join("");
-  const piso = m.arr + h;
-  el("path", { class: "area", d: `${trazo}L${x(puntos.length - 1)},${piso}L${x(0)},${piso}Z` }, svg);
-  el("path", { class: "linea", d: trazo }, svg);
   // Con muchos meses, los puntos se ocultan y solo aparece el que tocas
-  const radio = puntos.length > 24 ? 0 : 4;
-  const circulos = puntos.map((p, i) => el("circle", { class: "punto", cx: x(i), cy: y(p.valor), r: radio }, svg));
+  const radio = n > 24 ? 0 : 4;
+  let marcas1 = [];
+  let marcas2 = [];
+
+  if (barras) {
+    const anchoBarra = Math.max(4, Math.min(28, (w / n) * 0.62));
+    marcas1 = puntos.map((p, i) => {
+      const y0 = y(0);
+      const yv = y(p.valor);
+      return el("rect", {
+        class: p.valor < 0 ? "barra negativa" : "barra",
+        x: x(i) - anchoBarra / 2,
+        y: Math.min(y0, yv),
+        width: anchoBarra,
+        height: Math.max(1, Math.abs(yv - y0)),
+        rx: 3,
+      }, svg);
+    });
+  } else {
+    const trazo = puntos.map((p, i) => `${i ? "L" : "M"}${x(i)},${y(p.valor)}`).join("");
+    const piso = m.arr + h;
+    if (!dos) el("path", { class: "area", d: `${trazo}L${x(n - 1)},${piso}L${x(0)},${piso}Z` }, svg);
+    if (dos) {
+      // Línea rayada para la subyacente (se distingue sin depender del color)
+      let d2 = "";
+      let empezar = true;
+      puntos.forEach((p, i) => {
+        if (!Number.isFinite(p.valor2)) return void (empezar = true);
+        d2 += `${empezar ? "M" : "L"}${x(i)},${y(p.valor2)}`;
+        empezar = false;
+      });
+      el("path", { class: "linea linea2", d: d2 }, svg);
+    }
+    el("path", { class: "linea", d: trazo }, svg);
+    if (dos) {
+      marcas2 = puntos.map((p, i) =>
+        Number.isFinite(p.valor2) ? el("circle", { class: "punto punto2", cx: x(i), cy: y(p.valor2), r: radio }, svg) : null
+      );
+    }
+    marcas1 = puntos.map((p, i) => el("circle", { class: "punto", cx: x(i), cy: y(p.valor), r: radio }, svg));
+  }
 
   // Interacción: tocar o pasar el dedo/ratón muestra el cuadro del punto más cercano
   let activo = -1;
+  function marcar(i, si) {
+    const a = marcas1[i];
+    const b = marcas2[i];
+    a.classList.toggle("activo", si);
+    if (!barras) a.setAttribute("r", si ? 5.5 : radio);
+    if (b) b.classList.toggle("activo", si), b.setAttribute("r", si ? 5 : radio);
+  }
   function mostrar(i) {
     if (i === activo) return;
-    if (activo >= 0) circulos[activo].classList.remove("activo"), circulos[activo].setAttribute("r", radio);
+    if (activo >= 0) marcar(activo, false);
     activo = i;
     if (i < 0) {
       cuadro.hidden = true;
@@ -241,22 +363,29 @@ function dibujarGrafica(cont, puntos, ind) {
       return;
     }
     const p = puntos[i];
-    circulos[i].classList.add("activo");
-    circulos[i].setAttribute("r", 5.5);
+    marcar(i, true);
     guia.setAttribute("x1", x(i));
     guia.setAttribute("x2", x(i));
-    guia.setAttribute("visibility", "visible");
-    const extra = ind.esRango
-      ? `<span class="extra">Rango: ${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)} %</span>`
-      : ind.textoExtra ? `<span class="extra">${ind.textoExtra}</span>` : "";
-    cuadro.innerHTML = `${p.etiqueta}<strong>${ind.prefijo || ""}${fmt(p.valor, ind.decimales)}${ind.unidad ? " " + ind.unidad : ""}${ind.esRango ? " (límite superior)" : ""}</strong>${extra}`;
+    guia.setAttribute("visibility", barras ? "hidden" : "visible");
+    let html;
+    if (dos) {
+      const v2 = Number.isFinite(p.valor2) ? conUnidad(fmt(p.valor2, ind.decimales), ind) : "sin dato";
+      html = `${p.etiqueta}<strong>${conUnidad(fmt(p.valor, ind.decimales), ind)} <small>general</small></strong><span class="extra">${v2} subyacente</span>`;
+    } else {
+      const extra = ind.esRango
+        ? `<span class="extra">Rango: ${fmt(p.inferior, ind.decimales)}–${fmt(p.valor, ind.decimales)} %</span>`
+        : ind.textoExtra ? `<span class="extra">${ind.textoExtra}</span>` : barras ? `<span class="extra">empleos</span>` : "";
+      html = `${p.etiqueta}<strong>${ind.prefijo || ""}${conUnidad(fmtNum(p.valor, ind), ind)}${ind.esRango ? " (límite superior)" : ""}</strong>${extra}`;
+    }
+    cuadro.innerHTML = html;
     cuadro.hidden = false;
     const mitad = cuadro.offsetWidth / 2;
     const cx = Math.max(mitad, Math.min(ancho - mitad, x(i)));
     cuadro.style.left = `${cx}px`;
-    // Arriba del punto si cabe; si no, abajo
-    const top = y(p.valor) - cuadro.offsetHeight - 10;
-    cuadro.style.top = `${top >= -8 ? top : y(p.valor) + 12}px`;
+    // Arriba del punto (o de la barra) si cabe; si no, abajo
+    const alturaRef = barras ? Math.min(y(0), y(p.valor)) : Math.min(y(p.valor), dos && Number.isFinite(p.valor2) ? y(p.valor2) : Infinity);
+    const top = alturaRef - cuadro.offsetHeight - 10;
+    cuadro.style.top = `${top >= -8 ? top : Math.max(y(p.valor), barras ? y(0) : 0) + 12}px`;
   }
   function indiceCercano(ev) {
     const r = svg.getBoundingClientRect();
@@ -274,8 +403,8 @@ function dibujarGrafica(cont, puntos, ind) {
   });
   svg.addEventListener("blur", () => mostrar(-1));
   svg.addEventListener("keydown", (ev) => {
-    if (ev.key === "ArrowRight") mostrar(Math.min(puntos.length - 1, activo + 1));
-    else if (ev.key === "ArrowLeft") mostrar(Math.max(0, activo < 0 ? puntos.length - 1 : activo - 1));
+    if (ev.key === "ArrowRight") mostrar(Math.min(n - 1, activo + 1));
+    else if (ev.key === "ArrowLeft") mostrar(Math.max(0, activo < 0 ? n - 1 : activo - 1));
     else if (ev.key === "Escape") mostrar(-1);
     else return;
     ev.preventDefault();
