@@ -639,6 +639,23 @@ async function cargarEstado() {
 
 // ---------- Arranque ----------
 
+// Pone dentro de la tarjeta su explicación (viene de <template data-guia="..."> en index.html),
+// como un bloque que se abre al tocarlo, justo antes de «Ver los números»
+function agregarGuia(art, id) {
+  const plantilla = document.querySelector(`template[data-guia="${id}"]`);
+  if (!plantilla) return;
+  const bloque = document.createElement("details");
+  bloque.className = "como-leer";
+  bloque.innerHTML = `<summary><span aria-hidden="true">📖</span> Cómo leer este dato</summary>`;
+  const contenido = document.createElement("div");
+  contenido.className = "como-leer-texto";
+  contenido.appendChild(plantilla.content.cloneNode(true));
+  bloque.appendChild(contenido);
+  const cuerpo = art.querySelector(".cuerpo");
+  const tabla = cuerpo.querySelector("details.tabla");
+  cuerpo.insertBefore(bloque, tabla || null);
+}
+
 async function iniciar() {
   const zona = document.getElementById("tarjetas");
   cargarEstado();
@@ -650,6 +667,7 @@ async function iniciar() {
         const puntos = aPuntos(leerCSV(await cargarTexto(ind.archivo)), ind);
         if (!puntos.length) throw new Error("archivo vacío");
         llenarTarjeta(art, ind, puntos);
+        agregarGuia(art, ind.id);
       } catch (e) {
         // Una tarjeta con problemas no rompe las demás
         art.querySelector(".cuerpo").innerHTML = `<p class="error-tarjeta">No se pudieron cargar los datos de «${ind.titulo}» en este momento. Intenta de nuevo más tarde.</p>`;
@@ -663,6 +681,7 @@ async function iniciar() {
   try {
     const puntos = aPuntos(leerCSV(await cargarTexto(PODER.archivo)), PODER);
     llenarPoder(art, puntos);
+    agregarGuia(art, PODER.id);
   } catch (e) {
     art.querySelector(".cuerpo").innerHTML = `<p class="error-tarjeta">No se pudieron cargar los datos de «${PODER.titulo}» en este momento. Intenta de nuevo más tarde.</p>`;
     console.error(e);

@@ -279,16 +279,17 @@ details.tabla td:last-child, details.tabla th:last-child { text-align: right; }
 
 .error-tarjeta { color: var(--texto-2); font-size: .95rem; }
 
-/* ============ Guía ============ */
-.guia {
-  margin-top: 20px;
-  background: var(--superficie);
-  border: 1px solid var(--borde);
-  border-radius: 18px;
-  padding: 18px 16px;
-  box-shadow: var(--sombra);
-}
-.guia h2 { font-size: 1.15rem; margin: 0 0 6px; }
-.guia dt { font-weight: 700; margin-top: 14px; }
-.guia dd { margin: 3px 0 0; color: var(--texto-2); }
+/* ============ «Cómo leer este dato» dentro de cada tarjeta ============ */
+details.como-leer { margin-top: 10px; border-radius: 12px; background: color-mix(in srgb, var(--acento) 7%, transparent); }
+details.como-leer summary { cursor: pointer; padding: 8px 10px; font-size: .85rem; font-weight: 600; color: var(--texto); }
+details.como-leer[open] summary { padding-bottom: 2px; }
+details.como-leer summary, details.tabla summary { -webkit-tap-highlight-color: transparent; border-radius: 12px; }
+details.como-leer summary:focus, details.tabla summary:focus { outline: none; }
+details.como-leer summary:focus-visible, details.tabla summary:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+.como-leer-texto { padding: 0 10px 8px; font-size: .88rem; line-height: 1.45; color: var(--texto-2); }
+.como-leer-texto p { margin: 6px 0 0; }
+.como-leer-texto strong { color: var(--texto); }
+
+/* ============ Pie de página ============ */
+.pie { margin: 20px 4px 8px; }
 .nota { font-size: .82rem; color: var(--texto-3); margin: 14px 0 0; }
