@@ -114,26 +114,26 @@ from openpyxl.chart.label import DataLabelList
 from openpyxl.chart.series import DataPoint
 
 datos = [
-    ("G1", "Datos para gráficas", None), ("H1", "Cantidad", None),
-    ("G2", "Ingresos", "=B2"), ("G3", "Gastos", "=B3"),
-    ("G5", "Ganadoras", f'=COUNTIF(Trading!$G$2:$G${R},">0")'),
-    ("G6", "Perdedoras / empate", "=B5-H5"),
-    ("G8", "Cumplí reglas", f'=COUNTIF(Trading!$H$2:$H${R},"Sí")'),
-    ("G9", "No cumplí", f'=COUNTIF(Trading!$H$2:$H${R},"No")'),
+    ("K1", "Datos para gráficas", None), ("L1", "Cantidad", None),
+    ("K2", "Ingresos", "=B2"), ("K3", "Gastos", "=B3"),
+    ("K5", "Ganadoras", f'=COUNTIF(Trading!$G$2:$G${R},">0")'),
+    ("K6", "Perdedoras / empate", "=B5-L5"),
+    ("K8", "Cumplí reglas", f'=COUNTIF(Trading!$H$2:$H${R},"Sí")'),
+    ("K9", "No cumplí", f'=COUNTIF(Trading!$H$2:$H${R},"No")'),
 ]
 for celda, etiqueta, formula in datos:
     rs[celda] = etiqueta
     rs[celda].font = FONT
     if formula:
-        dest = "H" + celda[1:]
+        dest = "L" + celda[1:]
         rs[dest] = formula
         rs[dest].font = FONT
-        rs[dest].number_format = MONEDA if celda in ("G2", "G3") else "0"
-for c in ("G1", "H1"):
+        rs[dest].number_format = MONEDA if celda in ("K2", "K3") else "0"
+for c in ("K1", "L1"):
     rs[c].font = BOLD
     rs[c].fill = HEAD_FILL
-rs.column_dimensions["G"].width = 22
-rs.column_dimensions["H"].width = 14
+rs.column_dimensions["K"].width = 28
+rs.column_dimensions["L"].width = 14
 
 VERDE, ROJO = "2E8B57", "C0392B"
 
@@ -150,8 +150,8 @@ barras = BarChart()
 barras.type = "col"
 barras.title = "Ingresos vs Gastos"
 barras.legend = None
-barras.add_data(Reference(rs, min_col=8, min_row=2, max_row=3))
-barras.set_categories(Reference(rs, min_col=7, min_row=2, max_row=3))
+barras.add_data(Reference(rs, min_col=12, min_row=2, max_row=3))
+barras.set_categories(Reference(rs, min_col=11, min_row=2, max_row=3))
 barras.y_axis.numFmt = '"$"#,##0'
 barras.y_axis.majorGridlines = None
 barras.y_axis.delete = False
@@ -169,8 +169,8 @@ rs.add_chart(barras, "A13")
 def pastel(titulo, fila, ancla):
     p = PieChart()
     p.title = titulo
-    p.add_data(Reference(rs, min_col=8, min_row=fila, max_row=fila + 1))
-    p.set_categories(Reference(rs, min_col=7, min_row=fila, max_row=fila + 1))
+    p.add_data(Reference(rs, min_col=12, min_row=fila, max_row=fila + 1))
+    p.set_categories(Reference(rs, min_col=11, min_row=fila, max_row=fila + 1))
     p.dataLabels = DataLabelList()
     p.dataLabels.showPercent = True
     p.dataLabels.showVal = False
@@ -184,6 +184,64 @@ def pastel(titulo, fila, ancla):
 
 pastel("Operaciones ganadoras vs perdedoras", 5, "D13")
 pastel("¿Cumplí mis reglas?", 8, "A29")
+
+# ---------- Gastos por categoría ----------
+CATEGORIAS = ["Alimentación", "Vivienda", "Transporte", "Servicios", "Salud",
+              "Ocio", "Educación", "Deudas", "Otros"]
+C0 = 12  # primera fila de categorías
+C1 = C0 + len(CATEGORIAS) - 1
+rs[f"K{C0 - 1}"] = "Categoría de gasto"
+rs[f"L{C0 - 1}"] = "Gastado"
+for c in (f"K{C0 - 1}", f"L{C0 - 1}"):
+    rs[c].font = BOLD
+    rs[c].fill = HEAD_FILL
+for i, cat in enumerate(CATEGORIAS):
+    r = C0 + i
+    rs[f"K{r}"] = cat
+    rs[f"K{r}"].font = INPUT_FONT
+    rs[f"L{r}"] = (f'=SUMIFS(Finanzas!$E$2:$E${R},Finanzas!$D$2:$D${R},"Gasto",'
+                   f'Finanzas!$C$2:$C${R},K{r})')
+    rs[f"L{r}"].font = FONT
+    rs[f"L{r}"].number_format = MONEDA
+fila_sin = C1 + 1
+rs[f"K{fila_sin}"] = "Sin categoría / fuera de lista"
+rs[f"K{fila_sin}"].font = FONT
+rs[f"L{fila_sin}"] = f"=B3-SUM(L{C0}:L{C1})"
+rs[f"L{fila_sin}"].font = FONT
+rs[f"L{fila_sin}"].number_format = MONEDA
+rs[f"K{fila_sin + 1}"] = "Puedes renombrar las categorías en azul."
+rs[f"K{fila_sin + 1}"].font = Font(name="Arial", size=9, italic=True, color="595959")
+
+# Lista desplegable de Categoría en Finanzas, tomada de esta tabla.
+# Estilo "information": sugiere la lista pero deja escribir otras (p. ej. ingresos).
+dv_cat = DataValidation(type="list", formula1=f"=Resumen!$K${C0}:$K${C1}",
+                        allow_blank=True, errorStyle="information")
+dv_cat.error = "Esta categoría no está en la lista; contará como 'Sin categoría' en la gráfica de gastos."
+dv_cat.errorTitle = "Categoría nueva"
+fin.add_data_validation(dv_cat)
+dv_cat.add(f"C2:C{MAX_ROW}")
+
+cat_chart = BarChart()
+cat_chart.type = "bar"
+cat_chart.title = "Gastos por categoría"
+cat_chart.legend = None
+cat_chart.add_data(Reference(rs, min_col=12, min_row=C0, max_row=fila_sin))
+cat_chart.set_categories(Reference(rs, min_col=11, min_row=C0, max_row=fila_sin))
+cat_chart.x_axis.scaling.orientation = "maxMin"  # primera categoría arriba
+cat_chart.x_axis.delete = False
+cat_chart.y_axis.delete = False
+cat_chart.y_axis.numFmt = '"$"#,##0'
+cat_chart.y_axis.majorGridlines = None
+cat_chart.y_axis.crosses = "max"  # eje de montos abajo
+cat_chart.dataLabels = DataLabelList()
+cat_chart.dataLabels.showVal = True
+cat_chart.dataLabels.showSerName = False
+cat_chart.dataLabels.showCatName = False
+cat_chart.dataLabels.showLegendKey = False
+cat_chart.series[0].graphicalProperties.solidFill = ROJO
+cat_chart.series[0].graphicalProperties.line.solidFill = ROJO
+cat_chart.width, cat_chart.height = 14, 9
+rs.add_chart(cat_chart, "D29")
 
 for ws in (fin, tr):
     for row in ws.iter_rows(min_row=2, max_row=4):
