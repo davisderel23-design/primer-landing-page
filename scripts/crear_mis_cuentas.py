@@ -108,6 +108,83 @@ rs["A11"] = "La columna Resultado de Trading y todo este resumen se calculan sol
 for c in ("A10", "A11"):
     rs[c].font = Font(name="Arial", size=9, italic=True, color="595959")
 
+# ---------- Datos y gráficas del Resumen ----------
+from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart.label import DataLabelList
+from openpyxl.chart.series import DataPoint
+
+datos = [
+    ("G1", "Datos para gráficas", None), ("H1", "Cantidad", None),
+    ("G2", "Ingresos", "=B2"), ("G3", "Gastos", "=B3"),
+    ("G5", "Ganadoras", f'=COUNTIF(Trading!$G$2:$G${R},">0")'),
+    ("G6", "Perdedoras / empate", "=B5-H5"),
+    ("G8", "Cumplí reglas", f'=COUNTIF(Trading!$H$2:$H${R},"Sí")'),
+    ("G9", "No cumplí", f'=COUNTIF(Trading!$H$2:$H${R},"No")'),
+]
+for celda, etiqueta, formula in datos:
+    rs[celda] = etiqueta
+    rs[celda].font = FONT
+    if formula:
+        dest = "H" + celda[1:]
+        rs[dest] = formula
+        rs[dest].font = FONT
+        rs[dest].number_format = MONEDA if celda in ("G2", "G3") else "0"
+for c in ("G1", "H1"):
+    rs[c].font = BOLD
+    rs[c].fill = HEAD_FILL
+rs.column_dimensions["G"].width = 22
+rs.column_dimensions["H"].width = 14
+
+VERDE, ROJO = "2E8B57", "C0392B"
+
+
+def colorear(serie, colores):
+    for i, color in enumerate(colores):
+        pt = DataPoint(idx=i)
+        pt.graphicalProperties.solidFill = color
+        pt.graphicalProperties.line.solidFill = color
+        serie.dPt.append(pt)
+
+
+barras = BarChart()
+barras.type = "col"
+barras.title = "Ingresos vs Gastos"
+barras.legend = None
+barras.add_data(Reference(rs, min_col=8, min_row=2, max_row=3))
+barras.set_categories(Reference(rs, min_col=7, min_row=2, max_row=3))
+barras.y_axis.numFmt = '"$"#,##0'
+barras.y_axis.majorGridlines = None
+barras.y_axis.delete = False
+barras.x_axis.delete = False
+barras.dataLabels = DataLabelList()
+barras.dataLabels.showVal = True
+barras.dataLabels.showSerName = False
+barras.dataLabels.showCatName = False
+barras.dataLabels.showLegendKey = False
+colorear(barras.series[0], [VERDE, ROJO])
+barras.width, barras.height = 12, 7.5
+rs.add_chart(barras, "A13")
+
+
+def pastel(titulo, fila, ancla):
+    p = PieChart()
+    p.title = titulo
+    p.add_data(Reference(rs, min_col=8, min_row=fila, max_row=fila + 1))
+    p.set_categories(Reference(rs, min_col=7, min_row=fila, max_row=fila + 1))
+    p.dataLabels = DataLabelList()
+    p.dataLabels.showPercent = True
+    p.dataLabels.showVal = False
+    p.dataLabels.showSerName = False
+    p.dataLabels.showCatName = False
+    p.dataLabels.showLegendKey = False
+    colorear(p.series[0], [VERDE, ROJO])
+    p.width, p.height = 10, 7.5
+    rs.add_chart(p, ancla)
+
+
+pastel("Operaciones ganadoras vs perdedoras", 5, "D13")
+pastel("¿Cumplí mis reglas?", 8, "A29")
+
 for ws in (fin, tr):
     for row in ws.iter_rows(min_row=2, max_row=4):
         for cell in row:
