@@ -240,8 +240,75 @@ cat_chart.dataLabels.showCatName = False
 cat_chart.dataLabels.showLegendKey = False
 cat_chart.series[0].graphicalProperties.solidFill = ROJO
 cat_chart.series[0].graphicalProperties.line.solidFill = ROJO
-cat_chart.width, cat_chart.height = 14, 9
+cat_chart.width, cat_chart.height = 11.5, 9
 rs.add_chart(cat_chart, "D29")
+
+# ---------- Evolución por mes (fechas) ----------
+from openpyxl.chart import LineChart
+
+M0 = 27  # primera fila de meses
+rs["K25"] = "Año a graficar"
+rs["K25"].font = Font(name="Arial", size=10, bold=True)
+rs["L25"] = 2026
+rs["L25"].font = INPUT_FONT
+rs["L25"].fill = PatternFill("solid", fgColor="FFFF00")
+rs["L25"].comment = Comment("Cambia el año y las gráficas por mes se actualizan.", "mis_cuentas")
+for col, txt in zip("KLMNO", ["Mes", "Ingresos", "Gastos", "Resultado trading", "Trading acumulado"]):
+    rs[f"{col}{M0 - 1}"] = txt
+    rs[f"{col}{M0 - 1}"].font = BOLD
+    rs[f"{col}{M0 - 1}"].fill = HEAD_FILL
+for col in "MNO":
+    rs.column_dimensions[col].width = 18
+MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
+for m, nombre in enumerate(MESES, start=1):
+    r = M0 + m - 1
+    desde = f"DATE($L$25,{m},1)"
+    hasta = f"DATE($L$25,{m + 1},1)"  # DATE ajusta el mes 13 a enero del año siguiente
+    rs[f"K{r}"] = nombre
+    for col, tipo in (("L", "Ingreso"), ("M", "Gasto")):
+        rs[f"{col}{r}"] = (f'=SUMIFS(Finanzas!$E$2:$E${R},Finanzas!$D$2:$D${R},"{tipo}",'
+                           f'Finanzas!$A$2:$A${R},">="&{desde},Finanzas!$A$2:$A${R},"<"&{hasta})')
+    rs[f"N{r}"] = (f'=SUMIFS(Trading!$G$2:$G${R},Trading!$A$2:$A${R},">="&{desde},'
+                   f'Trading!$A$2:$A${R},"<"&{hasta})')
+    rs[f"O{r}"] = f"=N{r}" if m == 1 else f"=O{r - 1}+N{r}"
+    for col in "KLMNO":
+        rs[f"{col}{r}"].font = FONT
+        if col != "K":
+            rs[f"{col}{r}"].number_format = MONEDA
+M1 = M0 + 11
+
+mes_chart = BarChart()
+mes_chart.type = "col"
+mes_chart.title = "Ingresos y gastos por mes"
+mes_chart.add_data(Reference(rs, min_col=12, max_col=13, min_row=M0 - 1, max_row=M1), titles_from_data=True)
+mes_chart.set_categories(Reference(rs, min_col=11, min_row=M0, max_row=M1))
+mes_chart.series[0].graphicalProperties.solidFill = VERDE
+mes_chart.series[0].graphicalProperties.line.solidFill = VERDE
+mes_chart.series[1].graphicalProperties.solidFill = ROJO
+mes_chart.series[1].graphicalProperties.line.solidFill = ROJO
+mes_chart.y_axis.numFmt = '"$"#,##0'
+mes_chart.y_axis.majorGridlines = None
+mes_chart.x_axis.delete = False
+mes_chart.y_axis.delete = False
+mes_chart.legend.position = "b"
+mes_chart.width, mes_chart.height = 12, 7.5
+rs.add_chart(mes_chart, "A49")
+
+eq = LineChart()
+eq.title = "Resultado de trading acumulado por mes"
+eq.add_data(Reference(rs, min_col=15, min_row=M0 - 1, max_row=M1), titles_from_data=True)
+eq.set_categories(Reference(rs, min_col=11, min_row=M0, max_row=M1))
+eq.series[0].graphicalProperties.line.solidFill = "1F4E78"
+eq.series[0].graphicalProperties.line.width = 28000
+eq.series[0].marker.symbol = "circle"
+eq.series[0].marker.size = 6
+eq.series[0].smooth = False
+eq.y_axis.numFmt = '"$"#,##0'
+eq.x_axis.delete = False
+eq.y_axis.delete = False
+eq.legend = None
+eq.width, eq.height = 11.5, 7.5
+rs.add_chart(eq, "D49")
 
 for ws in (fin, tr):
     for row in ws.iter_rows(min_row=2, max_row=4):
