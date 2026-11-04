@@ -85,59 +85,155 @@ lista(tr, ["Compra", "Venta"], f"C2:C{MAX_ROW}")
 lista(tr, ["Sí", "No"], f"H2:H{MAX_ROW}")
 
 # ---------- Resumen ----------
-rs = wb.create_sheet("Resumen")
-encabezados(rs, ["Indicador", "Valor"], [42, 18])
-R = MAX_ROW
-resumen = [
-    ("Total de ingresos", f'=SUMIFS(Finanzas!$E$2:$E${R},Finanzas!$D$2:$D${R},"Ingreso")', MONEDA),
-    ("Total de gastos", f'=SUMIFS(Finanzas!$E$2:$E${R},Finanzas!$D$2:$D${R},"Gasto")', MONEDA),
-    ("Saldo", "=B2-B3", MONEDA),
-    ("Número de operaciones", f"=COUNTA(Trading!$B$2:$B${R})", "0"),
-    ("% de operaciones ganadoras", f'=IFERROR(COUNTIF(Trading!$G$2:$G${R},">0")/B5,0)', "0.0%"),
-    ("Resultado total de trading", f"=SUM(Trading!$G$2:$G${R})", MONEDA),
-    ("% de operaciones donde cumplí mis reglas", f'=IFERROR(COUNTIF(Trading!$H$2:$H${R},"Sí")/B5,0)', "0.0%"),
-]
-for r, (lab, f, fmt) in enumerate(resumen, start=2):
-    rs[f"A{r}"] = lab
-    rs[f"A{r}"].font = FONT
-    rs[f"B{r}"] = f
-    rs[f"B{r}"].font = FONT
-    rs[f"B{r}"].number_format = fmt
-rs["A10"] = "Cómo usarlo: escribe tus datos en las hojas Finanzas y Trading (texto azul = datos de ejemplo, puedes borrarlos)."
-rs["A11"] = "La columna Resultado de Trading y todo este resumen se calculan solos (hasta la fila 1000)."
-for c in ("A10", "A11"):
-    rs[c].font = Font(name="Arial", size=9, italic=True, color="595959")
-
-# ---------- Datos y gráficas del Resumen ----------
-from openpyxl.chart import BarChart, PieChart, Reference
+from openpyxl.chart import BarChart, PieChart, LineChart, Reference
 from openpyxl.chart.label import DataLabelList
 from openpyxl.chart.series import DataPoint
 
-datos = [
-    ("K1", "Datos para gráficas", None), ("L1", "Cantidad", None),
-    ("K2", "Ingresos", "=B2"), ("K3", "Gastos", "=B3"),
-    ("K5", "Ganadoras", f'=COUNTIF(Trading!$G$2:$G${R},">0")'),
-    ("K6", "Perdedoras / empate", "=B5-L5"),
-    ("K8", "Cumplí reglas", f'=COUNTIF(Trading!$H$2:$H${R},"Sí")'),
-    ("K9", "No cumplí", f'=COUNTIF(Trading!$H$2:$H${R},"No")'),
+rs = wb.create_sheet("Resumen")
+R = MAX_ROW
+FECHA = "DD/MM/YYYY"
+AMARILLO = PatternFill("solid", fgColor="FFFF00")
+NOTA = Font(name="Arial", size=9, italic=True, color="595959")
+VERDE, ROJO, AZUL = "2E8B57", "C0392B", "1F4E78"
+
+for col, w in zip("ABC", (42, 20, 20)):
+    rs.column_dimensions[col].width = w
+
+rs["A1"] = "Resumen de mis cuentas"
+rs["A1"].font = Font(name="Arial", size=14, bold=True, color=AZUL)
+
+
+def celda(ref, valor, fuente=FONT, fmt=None):
+    rs[ref] = valor
+    rs[ref].font = fuente
+    if fmt:
+        rs[ref].number_format = fmt
+
+
+# --- Selector de periodo ---
+F_FIN, F_TR = f"Finanzas!$A$2:$A${R}", f"Trading!$A$2:$A${R}"
+celda("A3", "Periodo (elige: Todo, Mes o Semana)", Font(name="Arial", size=10, bold=True))
+celda("B3", "Mes", INPUT_FONT)
+celda("A4", "Fecha de referencia", Font(name="Arial", size=10, bold=True))
+celda("B4", "=TODAY()", INPUT_FONT, FECHA)
+for c in ("B3", "B4"):
+    rs[c].fill = AMARILLO
+    rs[c].alignment = Alignment(horizontal="center")
+lista(rs, ["Todo", "Mes", "Semana"], "B3")
+rs["B3"].comment = Comment(
+    "Mes = el mes de la fecha de referencia. Semana = la semana (lunes a domingo) "
+    "de la fecha de referencia. Todo = todos tus registros.", "mis_cuentas")
+rs["B4"].comment = Comment(
+    "Con =HOY() ves esta semana o este mes. Escribe otra fecha para ver otra semana u otro mes.",
+    "mis_cuentas")
+celda("A5", "Desde")
+celda("B5", f'=IF($B$3="Semana",$B$4-WEEKDAY($B$4,2)+1,IF($B$3="Mes",DATE(YEAR($B$4),MONTH($B$4),1),'
+            f'IF(COUNT({F_FIN},{F_TR})=0,$B$4,MIN({F_FIN},{F_TR}))))', FONT, FECHA)
+celda("A6", "Hasta")
+celda("B6", f'=IF($B$3="Semana",$B$5+6,IF($B$3="Mes",DATE(YEAR($B$4),MONTH($B$4)+1,0),'
+            f'IF(COUNT({F_FIN},{F_TR})=0,$B$4,MAX({F_FIN},{F_TR}))))', FONT, FECHA)
+for c in ("B5", "B6"):
+    rs[c].alignment = Alignment(horizontal="center")
+
+
+def en_periodo(rango_fechas):
+    return f'{rango_fechas},">="&$B$5,{rango_fechas},"<="&$B$6'
+
+
+# --- Indicadores: periodo seleccionado y todo el historial ---
+for col, txt in zip("ABC", ["Indicador", "Periodo seleccionado", "Todo el historial"]):
+    celda(f"{col}8", txt, BOLD)
+    rs[f"{col}8"].fill = HEAD_FILL
+    rs[f"{col}8"].alignment = Alignment(horizontal="center")
+
+FE, FD = f"Finanzas!$E$2:$E${R}", f"Finanzas!$D$2:$D${R}"
+TB, TG, TH = f"Trading!$B$2:$B${R}", f"Trading!$G$2:$G${R}", f"Trading!$H$2:$H${R}"
+P_F, P_T = en_periodo(F_FIN), en_periodo(F_TR)
+indicadores = [
+    ("Total de ingresos", f'=SUMIFS({FE},{FD},"Ingreso",{P_F})', f'=SUMIFS({FE},{FD},"Ingreso")', MONEDA),
+    ("Total de gastos", f'=SUMIFS({FE},{FD},"Gasto",{P_F})', f'=SUMIFS({FE},{FD},"Gasto")', MONEDA),
+    ("Saldo", "=B9-B10", "=C9-C10", MONEDA),
+    ("Número de operaciones", f'=COUNTIFS({TB},"<>",{P_T})', f"=COUNTA({TB})", "0"),
+    ("% de operaciones ganadoras", f'=IFERROR(COUNTIFS({TG},">0",{P_T})/B12,0)',
+     f'=IFERROR(COUNTIF({TG},">0")/C12,0)', "0.0%"),
+    ("Resultado total de trading", f"=SUMIFS({TG},{P_T})", f"=SUM({TG})", MONEDA),
+    ("% de operaciones donde cumplí mis reglas", f'=IFERROR(COUNTIFS({TH},"Sí",{P_T})/B12,0)',
+     f'=IFERROR(COUNTIF({TH},"Sí")/C12,0)', "0.0%"),
 ]
-for celda, etiqueta, formula in datos:
-    rs[celda] = etiqueta
-    rs[celda].font = FONT
-    if formula:
-        dest = "L" + celda[1:]
-        rs[dest] = formula
-        rs[dest].font = FONT
-        rs[dest].number_format = MONEDA if celda in ("K2", "K3") else "0"
-for c in ("K1", "L1"):
-    rs[c].font = BOLD
-    rs[c].fill = HEAD_FILL
-rs.column_dimensions["K"].width = 28
-rs.column_dimensions["L"].width = 14
+for r, (lab, fp, ft, fmt) in enumerate(indicadores, start=9):
+    celda(f"A{r}", lab)
+    celda(f"B{r}", fp, FONT, fmt)
+    celda(f"C{r}", ft, FONT, fmt)
 
-VERDE, ROJO = "2E8B57", "C0392B"
+celda("A17", "Cómo usarlo: escribe tus datos en Finanzas y Trading (texto azul = ejemplos, puedes borrarlos).", NOTA)
+celda("A18", "Cambia las celdas amarillas para ver otra semana o mes: las gráficas y la columna B se actualizan solas.", NOTA)
+
+# --- Tablas auxiliares para las gráficas (columnas K en adelante) ---
+rs.column_dimensions["K"].width = 30
+for col in "LMNOPQ":
+    rs.column_dimensions[col].width = 19
 
 
+def encabezado_aux(fila, textos):
+    for col, txt in zip("KLMNOPQ", textos):
+        celda(f"{col}{fila}", txt, BOLD)
+        rs[f"{col}{fila}"].fill = HEAD_FILL
+
+
+encabezado_aux(1, ["Datos para gráficas (periodo)", "Cantidad"])
+aux = [
+    (2, "Ingresos", "=B9", MONEDA), (3, "Gastos", "=B10", MONEDA),
+    (5, "Ganadoras", f'=COUNTIFS({TG},">0",{P_T})', "0"), (6, "Perdedoras / empate", "=B12-L5", "0"),
+    (8, "Cumplí reglas", f'=COUNTIFS({TH},"Sí",{P_T})', "0"),
+    (9, "No cumplí", f'=COUNTIFS({TH},"No",{P_T})', "0"),
+]
+for fila, lab, f, fmt in aux:
+    celda(f"K{fila}", lab)
+    celda(f"L{fila}", f, FONT, fmt)
+
+# Gastos por categoría en el periodo
+CATEGORIAS = ["Alimentación", "Vivienda", "Transporte", "Servicios", "Salud",
+              "Ocio", "Educación", "Deudas", "Otros"]
+C0 = 12
+C1 = C0 + len(CATEGORIAS) - 1
+encabezado_aux(C0 - 1, ["Categoría de gasto", "Gastado (periodo)"])
+for i, cat in enumerate(CATEGORIAS):
+    r = C0 + i
+    celda(f"K{r}", cat, INPUT_FONT)
+    celda(f"L{r}", f'=SUMIFS({FE},{FD},"Gasto",Finanzas!$C$2:$C${R},K{r},{P_F})', FONT, MONEDA)
+SIN = C1 + 1
+celda(f"K{SIN}", "Sin categoría / fuera de lista")
+celda(f"L{SIN}", f"=B10-SUM(L{C0}:L{C1})", FONT, MONEDA)
+celda(f"K{SIN + 1}", "Puedes renombrar las categorías en azul.", NOTA)
+
+dv_cat = DataValidation(type="list", formula1=f"=Resumen!$K${C0}:$K${C1}",
+                        allow_blank=True, errorStyle="information")
+dv_cat.error = "Esta categoría no está en la lista; contará como 'Sin categoría' en la gráfica de gastos."
+dv_cat.errorTitle = "Categoría nueva"
+fin.add_data_validation(dv_cat)
+dv_cat.add(f"C2:C{MAX_ROW}")
+
+# Evolución: 12 semanas (si el periodo es Semana) o 12 meses del año de referencia
+E0 = 26
+celda(f"K{E0 - 2}", "Evolución: últimas 12 semanas si el periodo es Semana; meses del año si es Mes o Todo.", NOTA)
+encabezado_aux(E0 - 1, ["Periodo", "Ingresos", "Gastos", "Resultado trading",
+                        "Trading acumulado", "Inicio", "Fin"])
+MESES = '"Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"'
+for i in range(1, 13):
+    r = E0 + i - 1
+    celda(f"P{r}", f'=IF($B$3="Semana",$B$4-WEEKDAY($B$4,2)+1-7*{12 - i},DATE(YEAR($B$4),{i},1))',
+          FONT, FECHA)
+    celda(f"Q{r}", f'=IF($B$3="Semana",P{r}+6,DATE(YEAR($B$4),{i + 1},0))', FONT, FECHA)
+    celda(f"K{r}", f'=IF($B$3="Semana","Sem "&DAY(P{r})&"/"&MONTH(P{r}),CHOOSE(MONTH(P{r}),{MESES}))')
+    rango_f = f'{F_FIN},">="&P{r},{F_FIN},"<="&Q{r}'
+    celda(f"L{r}", f'=SUMIFS({FE},{FD},"Ingreso",{rango_f})', FONT, MONEDA)
+    celda(f"M{r}", f'=SUMIFS({FE},{FD},"Gasto",{rango_f})', FONT, MONEDA)
+    celda(f"N{r}", f'=SUMIFS({TG},{F_TR},">="&P{r},{F_TR},"<="&Q{r})', FONT, MONEDA)
+    celda(f"O{r}", f"=N{r}" if i == 1 else f"=O{r - 1}+N{r}", FONT, MONEDA)
+E1 = E0 + 11
+
+
+# --- Gráficas ---
 def colorear(serie, colores):
     for i, color in enumerate(colores):
         pt = DataPoint(idx=i)
@@ -146,24 +242,33 @@ def colorear(serie, colores):
         serie.dPt.append(pt)
 
 
+def etiquetas(chart, valor=True, porcentaje=False):
+    chart.dataLabels = DataLabelList()
+    chart.dataLabels.showVal = valor
+    chart.dataLabels.showPercent = porcentaje
+    chart.dataLabels.showSerName = False
+    chart.dataLabels.showCatName = False
+    chart.dataLabels.showLegendKey = False
+
+
+def ejes(chart, formato='"$"#,##0'):
+    chart.x_axis.delete = False
+    chart.y_axis.delete = False
+    chart.y_axis.numFmt = formato
+
+
 barras = BarChart()
 barras.type = "col"
-barras.title = "Ingresos vs Gastos"
+barras.title = "Ingresos vs Gastos (periodo)"
 barras.legend = None
 barras.add_data(Reference(rs, min_col=12, min_row=2, max_row=3))
 barras.set_categories(Reference(rs, min_col=11, min_row=2, max_row=3))
-barras.y_axis.numFmt = '"$"#,##0'
 barras.y_axis.majorGridlines = None
-barras.y_axis.delete = False
-barras.x_axis.delete = False
-barras.dataLabels = DataLabelList()
-barras.dataLabels.showVal = True
-barras.dataLabels.showSerName = False
-barras.dataLabels.showCatName = False
-barras.dataLabels.showLegendKey = False
+ejes(barras)
+etiquetas(barras)
 colorear(barras.series[0], [VERDE, ROJO])
-barras.width, barras.height = 12, 7.5
-rs.add_chart(barras, "A13")
+barras.width, barras.height = 14, 7.5
+rs.add_chart(barras, "A20")
 
 
 def pastel(titulo, fila, ancla):
@@ -171,144 +276,59 @@ def pastel(titulo, fila, ancla):
     p.title = titulo
     p.add_data(Reference(rs, min_col=12, min_row=fila, max_row=fila + 1))
     p.set_categories(Reference(rs, min_col=11, min_row=fila, max_row=fila + 1))
-    p.dataLabels = DataLabelList()
-    p.dataLabels.showPercent = True
-    p.dataLabels.showVal = False
-    p.dataLabels.showSerName = False
-    p.dataLabels.showCatName = False
-    p.dataLabels.showLegendKey = False
+    etiquetas(p, valor=False, porcentaje=True)
     colorear(p.series[0], [VERDE, ROJO])
-    p.width, p.height = 10, 7.5
+    p.width, p.height = 11.5, 7.5
     rs.add_chart(p, ancla)
 
 
-pastel("Operaciones ganadoras vs perdedoras", 5, "D13")
-pastel("¿Cumplí mis reglas?", 8, "A29")
-
-# ---------- Gastos por categoría ----------
-CATEGORIAS = ["Alimentación", "Vivienda", "Transporte", "Servicios", "Salud",
-              "Ocio", "Educación", "Deudas", "Otros"]
-C0 = 12  # primera fila de categorías
-C1 = C0 + len(CATEGORIAS) - 1
-rs[f"K{C0 - 1}"] = "Categoría de gasto"
-rs[f"L{C0 - 1}"] = "Gastado"
-for c in (f"K{C0 - 1}", f"L{C0 - 1}"):
-    rs[c].font = BOLD
-    rs[c].fill = HEAD_FILL
-for i, cat in enumerate(CATEGORIAS):
-    r = C0 + i
-    rs[f"K{r}"] = cat
-    rs[f"K{r}"].font = INPUT_FONT
-    rs[f"L{r}"] = (f'=SUMIFS(Finanzas!$E$2:$E${R},Finanzas!$D$2:$D${R},"Gasto",'
-                   f'Finanzas!$C$2:$C${R},K{r})')
-    rs[f"L{r}"].font = FONT
-    rs[f"L{r}"].number_format = MONEDA
-fila_sin = C1 + 1
-rs[f"K{fila_sin}"] = "Sin categoría / fuera de lista"
-rs[f"K{fila_sin}"].font = FONT
-rs[f"L{fila_sin}"] = f"=B3-SUM(L{C0}:L{C1})"
-rs[f"L{fila_sin}"].font = FONT
-rs[f"L{fila_sin}"].number_format = MONEDA
-rs[f"K{fila_sin + 1}"] = "Puedes renombrar las categorías en azul."
-rs[f"K{fila_sin + 1}"].font = Font(name="Arial", size=9, italic=True, color="595959")
-
-# Lista desplegable de Categoría en Finanzas, tomada de esta tabla.
-# Estilo "information": sugiere la lista pero deja escribir otras (p. ej. ingresos).
-dv_cat = DataValidation(type="list", formula1=f"=Resumen!$K${C0}:$K${C1}",
-                        allow_blank=True, errorStyle="information")
-dv_cat.error = "Esta categoría no está en la lista; contará como 'Sin categoría' en la gráfica de gastos."
-dv_cat.errorTitle = "Categoría nueva"
-fin.add_data_validation(dv_cat)
-dv_cat.add(f"C2:C{MAX_ROW}")
+pastel("Ganadoras vs perdedoras (periodo)", 5, "D20")
 
 cat_chart = BarChart()
 cat_chart.type = "bar"
-cat_chart.title = "Gastos por categoría"
+cat_chart.title = "Gastos por categoría (periodo)"
 cat_chart.legend = None
-cat_chart.add_data(Reference(rs, min_col=12, min_row=C0, max_row=fila_sin))
-cat_chart.set_categories(Reference(rs, min_col=11, min_row=C0, max_row=fila_sin))
+cat_chart.add_data(Reference(rs, min_col=12, min_row=C0, max_row=SIN))
+cat_chart.set_categories(Reference(rs, min_col=11, min_row=C0, max_row=SIN))
 cat_chart.x_axis.scaling.orientation = "maxMin"  # primera categoría arriba
-cat_chart.x_axis.delete = False
-cat_chart.y_axis.delete = False
-cat_chart.y_axis.numFmt = '"$"#,##0'
-cat_chart.y_axis.majorGridlines = None
 cat_chart.y_axis.crosses = "max"  # eje de montos abajo
-cat_chart.dataLabels = DataLabelList()
-cat_chart.dataLabels.showVal = True
-cat_chart.dataLabels.showSerName = False
-cat_chart.dataLabels.showCatName = False
-cat_chart.dataLabels.showLegendKey = False
+cat_chart.y_axis.majorGridlines = None
+ejes(cat_chart)
+etiquetas(cat_chart)
 cat_chart.series[0].graphicalProperties.solidFill = ROJO
 cat_chart.series[0].graphicalProperties.line.solidFill = ROJO
-cat_chart.width, cat_chart.height = 11.5, 9
-rs.add_chart(cat_chart, "D29")
+cat_chart.width, cat_chart.height = 14, 9
+rs.add_chart(cat_chart, "A36")
 
-# ---------- Evolución por mes (fechas) ----------
-from openpyxl.chart import LineChart
+pastel("¿Cumplí mis reglas? (periodo)", 8, "D36")
 
-M0 = 27  # primera fila de meses
-rs["K25"] = "Año a graficar"
-rs["K25"].font = Font(name="Arial", size=10, bold=True)
-rs["L25"] = 2026
-rs["L25"].font = INPUT_FONT
-rs["L25"].fill = PatternFill("solid", fgColor="FFFF00")
-rs["L25"].comment = Comment("Cambia el año y las gráficas por mes se actualizan.", "mis_cuentas")
-for col, txt in zip("KLMNO", ["Mes", "Ingresos", "Gastos", "Resultado trading", "Trading acumulado"]):
-    rs[f"{col}{M0 - 1}"] = txt
-    rs[f"{col}{M0 - 1}"].font = BOLD
-    rs[f"{col}{M0 - 1}"].fill = HEAD_FILL
-for col in "MNO":
-    rs.column_dimensions[col].width = 18
-MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
-for m, nombre in enumerate(MESES, start=1):
-    r = M0 + m - 1
-    desde = f"DATE($L$25,{m},1)"
-    hasta = f"DATE($L$25,{m + 1},1)"  # DATE ajusta el mes 13 a enero del año siguiente
-    rs[f"K{r}"] = nombre
-    for col, tipo in (("L", "Ingreso"), ("M", "Gasto")):
-        rs[f"{col}{r}"] = (f'=SUMIFS(Finanzas!$E$2:$E${R},Finanzas!$D$2:$D${R},"{tipo}",'
-                           f'Finanzas!$A$2:$A${R},">="&{desde},Finanzas!$A$2:$A${R},"<"&{hasta})')
-    rs[f"N{r}"] = (f'=SUMIFS(Trading!$G$2:$G${R},Trading!$A$2:$A${R},">="&{desde},'
-                   f'Trading!$A$2:$A${R},"<"&{hasta})')
-    rs[f"O{r}"] = f"=N{r}" if m == 1 else f"=O{r - 1}+N{r}"
-    for col in "KLMNO":
-        rs[f"{col}{r}"].font = FONT
-        if col != "K":
-            rs[f"{col}{r}"].number_format = MONEDA
-M1 = M0 + 11
-
-mes_chart = BarChart()
-mes_chart.type = "col"
-mes_chart.title = "Ingresos y gastos por mes"
-mes_chart.add_data(Reference(rs, min_col=12, max_col=13, min_row=M0 - 1, max_row=M1), titles_from_data=True)
-mes_chart.set_categories(Reference(rs, min_col=11, min_row=M0, max_row=M1))
-mes_chart.series[0].graphicalProperties.solidFill = VERDE
-mes_chart.series[0].graphicalProperties.line.solidFill = VERDE
-mes_chart.series[1].graphicalProperties.solidFill = ROJO
-mes_chart.series[1].graphicalProperties.line.solidFill = ROJO
-mes_chart.y_axis.numFmt = '"$"#,##0'
-mes_chart.y_axis.majorGridlines = None
-mes_chart.x_axis.delete = False
-mes_chart.y_axis.delete = False
-mes_chart.legend.position = "b"
-mes_chart.width, mes_chart.height = 12, 7.5
-rs.add_chart(mes_chart, "A49")
+evo = BarChart()
+evo.type = "col"
+evo.title = "Ingresos y gastos: semana a semana / mes a mes"
+evo.add_data(Reference(rs, min_col=12, max_col=13, min_row=E0 - 1, max_row=E1), titles_from_data=True)
+evo.set_categories(Reference(rs, min_col=11, min_row=E0, max_row=E1))
+for serie, color in zip(evo.series, (VERDE, ROJO)):
+    serie.graphicalProperties.solidFill = color
+    serie.graphicalProperties.line.solidFill = color
+evo.y_axis.majorGridlines = None
+ejes(evo)
+evo.legend.position = "b"
+evo.width, evo.height = 14, 7.5
+rs.add_chart(evo, "A55")
 
 eq = LineChart()
-eq.title = "Resultado de trading acumulado por mes"
-eq.add_data(Reference(rs, min_col=15, min_row=M0 - 1, max_row=M1), titles_from_data=True)
-eq.set_categories(Reference(rs, min_col=11, min_row=M0, max_row=M1))
-eq.series[0].graphicalProperties.line.solidFill = "1F4E78"
+eq.title = "Trading acumulado: semana a semana / mes a mes"
+eq.add_data(Reference(rs, min_col=15, min_row=E0 - 1, max_row=E1), titles_from_data=True)
+eq.set_categories(Reference(rs, min_col=11, min_row=E0, max_row=E1))
+eq.series[0].graphicalProperties.line.solidFill = AZUL
 eq.series[0].graphicalProperties.line.width = 28000
 eq.series[0].marker.symbol = "circle"
 eq.series[0].marker.size = 6
 eq.series[0].smooth = False
-eq.y_axis.numFmt = '"$"#,##0'
-eq.x_axis.delete = False
-eq.y_axis.delete = False
+ejes(eq)
 eq.legend = None
 eq.width, eq.height = 11.5, 7.5
-rs.add_chart(eq, "D49")
+rs.add_chart(eq, "D55")
 
 for ws in (fin, tr):
     for row in ws.iter_rows(min_row=2, max_row=4):
